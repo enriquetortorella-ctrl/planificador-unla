@@ -10,8 +10,8 @@ st.set_page_config(page_title="Círculo Rojo - UNLa", page_icon="🔴", layout="
 # --- CONTROL DE ESTADO (SESSION STATE) ---
 if "celebro_analista" not in st.session_state: st.session_state["celebro_analista"] = False
 if "celebro_licenciado" not in st.session_state: st.session_state["celebro_licenciado"] = False
-# Control para que la batalla contra jefes salga una sola vez por sesión
-if "jefes_derrotados" not in st.session_state: st.session_state["jefes_derrotados"] = []
+# Variable para guardar batallas pendientes entre recargas
+if "batalla_pendiente" not in st.session_state: st.session_state["batalla_pendiente"] = []
 
 # --- BASE DE DATOS DE FECHAS ---
 CALENDARIO = [
@@ -83,7 +83,7 @@ PLAN_ESTUDIOS = {
     "Informática (Módulos)": {"anio": 99, "duracion": "Requisito", "correlativas": []}
 }
 
-# --- SISTEMA DE MASCOTAS (Con Lagarto Agregado) ---
+# --- SISTEMA DE MASCOTAS ---
 MASCOTAS = {
     "Lagarto 🦎": ["🥚", "🦎", "🐊", "🦖", "👑🦖👑"],
     "Dragón 🐉": ["🥚", "🦎", "🐲", "🐉", "🔥🐲🔥"],
@@ -133,27 +133,29 @@ def guardar_registro(conn, df_nuevo):
     except Exception as e:
         st.error(f"Error al guardar: {e}")
 
-# --- FUNCIÓN: VERIFICAR BATALLAS CONTRA JEFES ---
-def verificar_jefes(aprobadas, avatar_actual):
-    for materia, data in JEFE_CONFIG.items():
-        # Si la materia está aprobada Y NO fue festejada en esta sesión
-        if materia in aprobadas and materia not in st.session_state["jefes_derrotados"]:
-            st.toast(f"⚔️ ¡JEFE DERROTADO: {data['boss_name']}!", icon="💥")
-            st.balloons()
-            # Cartel de Batalla Épica
-            st.markdown(f"""
-            <div style="background-color:#ffcccb;padding:15px;border-radius:10px;text-align:center;border:3px solid #d9534f; margin-bottom: 20px;">
-                <h2 style="color:#c9302c;margin:0;">💥 ¡BATALLA ÉPICA GANADA! 💥</h2>
-                <div style="font-size: 50px; margin: 10px 0;">
-                     {avatar_actual} ⚔️ VS ⚔️ {data['boss_emoji']}
+# --- FUNCIÓN: MOSTRAR BATALLA (Solo si hay pendiente) ---
+def mostrar_batalla_pendiente(avatar_actual):
+    if st.session_state["batalla_pendiente"]:
+        # Recorremos los jefes que acabamos de vencer
+        for materia in st.session_state["batalla_pendiente"]:
+            if materia in JEFE_CONFIG:
+                data = JEFE_CONFIG[materia]
+                st.toast(f"⚔️ ¡JEFE DERROTADO: {data['boss_name']}!", icon="💥")
+                st.balloons()
+                st.markdown(f"""
+                <div style="background-color:#ffcccb;padding:15px;border-radius:10px;text-align:center;border:3px solid #d9534f; margin-bottom: 20px;">
+                    <h2 style="color:#c9302c;margin:0;">💥 ¡BATALLA ÉPICA GANADA! 💥</h2>
+                    <div style="font-size: 50px; margin: 10px 0;">
+                         {avatar_actual} ⚔️ VS ⚔️ {data['boss_emoji']}
+                    </div>
+                    <h3 style="color:#a94442;">Derrotaste a: <strong>{data['boss_name']}</strong></h3>
+                    <p style="font-size: 18px; font-style: italic; color:#333;">"{data['frase_victoria']}"</p>
+                    <p style="font-size: 14px; color: gray;">(Materia: {materia})</p>
                 </div>
-                <h3 style="color:#a94442;">Derrotaste a: <strong>{data['boss_name']}</strong></h3>
-                <p style="font-size: 18px; font-style: italic; color:#333;">"{data['frase_victoria']}"</p>
-                <p style="font-size: 14px; color: gray;">(Materia: {materia})</p>
-            </div>
-            """, unsafe_allow_html=True)
-            # Marcar como derrotado en esta sesión
-            st.session_state["jefes_derrotados"].append(materia)
+                """, unsafe_allow_html=True)
+        
+        # IMPORTANTE: Limpiamos la lista para que NO aparezca de nuevo al recargar
+        st.session_state["batalla_pendiente"] = []
 
 
 # --- VERIFICAR TÍTULOS ---
@@ -241,7 +243,6 @@ def main():
     
     st.sidebar.markdown("---")
     st.sidebar.subheader("👾 Tu Compañero")
-    # Lagarto por defecto
     idx_defecto = list(MASCOTAS.keys()).index("Lagarto 🦎")
     tipo_mascota = st.sidebar.selectbox("Elegí tu avatar:", list(MASCOTAS.keys()), index=idx_defecto)
     
@@ -258,10 +259,10 @@ def main():
     st.sidebar.write(f"🎓 **Progreso:** {int(progreso * 100)}%")
     st.sidebar.progress(progreso)
 
-    # --- VERIFICACIONES (JEFES Y TÍTULOS) ---
-    # Primero verificamos batallas contra jefes
-    verificar_jefes(mis_aprobadas, avatar_actual)
-    # Luego verificamos títulos
+    # --- MOSTRAR BATALLA (SI HUBO UNA RECIENTE) ---
+    mostrar_batalla_pendiente(avatar_actual)
+
+    # --- VERIFICAR TÍTULOS ---
     titulo_obtenido = verificar_titulos(mis_aprobadas, usuario)
     if titulo_obtenido: st.sidebar.success(f"🏆 **Título:** {titulo_obtenido}")
 
@@ -289,6 +290,15 @@ def main():
                  elif not checked and materia in nuevas_aprobadas: nuevas_aprobadas.remove(materia)
 
         if st.button("💾 Guardar Historial"):
+            # DETECTAR SI VENCIÓ A UN JEFE AHORA MISMO
+            # Buscamos si hay un jefe en las "nuevas" que NO estaba en las "viejas"
+            bosses_recien_vencidos = [m for m in nuevas_aprobadas if m in JEFE_CONFIG and m not in mis_aprobadas]
+            
+            # Si venció a alguien, lo guardamos en la memoria temporal para mostrarlo tras recargar
+            if bosses_recien_vencidos:
+                st.session_state["batalla_pendiente"] = bosses_recien_vencidos
+
+            # Guardamos en BD
             df = df[~((df["Nombre"] == usuario) & (df["Estado"] == "Aprobada"))]
             nuevos = [{"Nombre": usuario, "Materia": m, "Estado": "Aprobada"} for m in nuevas_aprobadas]
             df = pd.concat([df, pd.DataFrame(nuevos)], ignore_index=True)
