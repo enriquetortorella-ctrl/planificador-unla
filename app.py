@@ -5,48 +5,60 @@ from streamlit_gsheets import GSheetsConnection
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="UNLa 2025", page_icon="🦅", layout="wide")
 
-# --- PLAN DE ESTUDIOS ---
+# --- PLAN DE ESTUDIOS 2025 (Datos Oficiales del PDF) ---
+# Si en el futuro cambia algo, solo editás esta lista.
 PLAN_ESTUDIOS = {
-    "Taller de Producción de Textos": {"anio": 1, "correlativas": []},
-    "Introducción a la Matemática": {"anio": 1, "correlativas": []},
-    "Contabilidad": {"anio": 1, "correlativas": []},
-    "Historia Económica Contemporánea": {"anio": 1, "correlativas": []},
-    "Elementos de Matemática": {"anio": 1, "correlativas": ["Introducción a la Matemática"]},
-    "Organización y Gestión": {"anio": 1, "correlativas": []},
-    "Economía y Sociedad": {"anio": 1, "correlativas": ["Historia Económica Contemporánea"]},
-    "Microeconomía": {"anio": 2, "correlativas": ["Historia Económica Contemporánea", "Introducción a la Matemática"]},
-    "Derecho Comercial": {"anio": 2, "correlativas": ["Organización y Gestión"]},
-    "Cálculo Financiero y Est. Aplicado": {"anio": 2, "correlativas": ["Elementos de Matemática"]},
-    "Costos Empresariales": {"anio": 2, "correlativas": ["Elementos de Matemática", "Organización y Gestión"]},
-    "Derecho Tributario": {"anio": 2, "correlativas": ["Derecho Comercial"]},
-    "Macroeconomía": {"anio": 2, "correlativas": ["Economía y Sociedad"]},
-    "Org. de la Producción y Tecnología": {"anio": 3, "correlativas": ["Costos Empresariales"]},
-    "Derecho del Trabajo y Seg. Social": {"anio": 3, "correlativas": ["Derecho Tributario"]},
-    "Comercialización": {"anio": 3, "correlativas": ["Costos Empresariales", "Macroeconomía"]},
-    "Control de Gestión": {"anio": 3, "correlativas": ["Costos Empresariales"]},
-    "Macroeconomía y Pol. Económica": {"anio": 3, "correlativas": ["Macroeconomía"]},
-    "Comercio Exterior y Ec. Int.": {"anio": 3, "correlativas": ["Macroeconomía y Pol. Económica"]},
-    "Plan de Negocios": {"anio": 3, "correlativas": ["Control de Gestión", "Comercialización"]},
-    "Financiamiento": {"anio": 3, "correlativas": ["Comercialización"]},
-    "Taller de Integración I": {"anio": 3, "correlativas": ["Comercialización"]},
-    "Formulación y Ev. de Proyectos": {"anio": 4, "correlativas": ["Comercio Exterior y Ec. Int.", "Plan de Negocios", "Taller de Integración I"]},
-    "Sistemas de Organización": {"anio": 4, "correlativas": ["Plan de Negocios"]},
-    "Economía Industrial": {"anio": 4, "correlativas": ["Macroeconomía y Pol. Económica", "Economía Bancaria y Financiera"]},
-    "Economía Bancaria y Financiera": {"anio": 4, "correlativas": ["Financiamiento"]},
-    "Gestión Ambiental y Empresa": {"anio": 4, "correlativas": ["Org. de la Producción y Tecnología", "Organización y Gestión"]},
-    "Admin. de Recursos Humanos": {"anio": 4, "correlativas": ["Gestión Ambiental y Empresa"]},
-    "Taller de Integración II": {"anio": 4, "correlativas": ["Sistemas de Organización", "Economía Bancaria y Financiera"]},
-    "Mediación y Negociación": {"anio": 5, "correlativas": ["Admin. de Recursos Humanos"]},
-    "Problemas Actuales de la Econ. Arg.": {"anio": 5, "correlativas": ["Taller de Integración II"]},
-    "Seminario: Resp. Social Empresaria": {"anio": 5, "correlativas": ["Ética y Empresa"]},
-    "Seminario: Economía Social": {"anio": 5, "correlativas": ["Políticas y Estrategias Des. Reg."]},
-    "Práctica Pre-Profesional": {"anio": 5, "correlativas": ["Taller de Integración II"]},
-    "Taller de Trabajo Final Integrador": {"anio": 5, "correlativas": ["Taller de Integración II", "Taller de Integración I"]},
-    "Ética y Empresa": {"anio": 5, "correlativas": ["Admin. de Recursos Humanos"]},
-    "Planeamiento Estratégico": {"anio": 5, "correlativas": ["Políticas y Estrategias Des. Reg."]},
-    "Políticas y Estrategias Des. Reg.": {"anio": 5, "correlativas": ["Taller de Integración II"]},
-    "Nivel 1 - Inglés": {"anio": 4, "correlativas": []},
-    "Nivel 2 - Inglés": {"anio": 5, "correlativas": ["Nivel 1 - Inglés"]}
+    # 1ER AÑO
+    "Taller de Producción de Textos": {"anio": 1, "duracion": "1°C", "correlativas": []},
+    "Introducción a la Matemática": {"anio": 1, "duracion": "1°C", "correlativas": []},
+    "Contabilidad": {"anio": 1, "duracion": "1°C", "correlativas": []},
+    "Historia Económica Contemporánea": {"anio": 1, "duracion": "1°C", "correlativas": []},
+    "Elementos de Matemática": {"anio": 1, "duracion": "2°C", "correlativas": ["Introducción a la Matemática"]},
+    "Organización y Gestión": {"anio": 1, "duracion": "2°C", "correlativas": []},
+    "Economía y Sociedad": {"anio": 1, "duracion": "2°C", "correlativas": ["Historia Económica Contemporánea"]},
+    
+    # 2DO AÑO
+    "Microeconomía": {"anio": 2, "duracion": "ANUAL", "correlativas": ["Historia Económica Contemporánea", "Introducción a la Matemática"]},
+    "Derecho Comercial": {"anio": 2, "duracion": "1°C", "correlativas": ["Organización y Gestión"]},
+    "Cálculo Financiero y Est. Aplicado": {"anio": 2, "duracion": "ANUAL", "correlativas": ["Elementos de Matemática"]},
+    "Costos Empresariales": {"anio": 2, "duracion": "2°C", "correlativas": ["Elementos de Matemática", "Organización y Gestión"]},
+    "Derecho Tributario": {"anio": 2, "duracion": "2°C", "correlativas": ["Derecho Comercial"]},
+    "Macroeconomía": {"anio": 2, "duracion": "2°C", "correlativas": ["Economía y Sociedad"]},
+
+    # 3ER AÑO
+    "Org. de la Producción y Tecnología": {"anio": 3, "duracion": "1°C", "correlativas": ["Costos Empresariales"]},
+    "Derecho del Trabajo y Seg. Social": {"anio": 3, "duracion": "1°C", "correlativas": ["Derecho Tributario"]},
+    "Comercialización": {"anio": 3, "duracion": "1°C", "correlativas": ["Costos Empresariales", "Macroeconomía"]},
+    "Control de Gestión": {"anio": 3, "duracion": "1°C", "correlativas": ["Costos Empresariales"]},
+    "Macroeconomía y Pol. Económica": {"anio": 3, "duracion": "1°C", "correlativas": ["Macroeconomía"]},
+    "Comercio Exterior y Ec. Int.": {"anio": 3, "duracion": "1°C", "correlativas": ["Macroeconomía y Pol. Económica"]},
+    "Plan de Negocios": {"anio": 3, "duracion": "1°C", "correlativas": ["Control de Gestión", "Comercialización"]},
+    "Financiamiento": {"anio": 3, "duracion": "2°C", "correlativas": ["Comercialización"]},
+    "Taller de Integración I": {"anio": 3, "duracion": "2°C", "correlativas": ["Comercialización"]},
+
+    # 4TO AÑO
+    "Formulación y Ev. de Proyectos": {"anio": 4, "duracion": "ANUAL", "correlativas": ["Comercio Exterior y Ec. Int.", "Plan de Negocios", "Taller de Integración I"]},
+    "Sistemas de Organización": {"anio": 4, "duracion": "1°C", "correlativas": ["Plan de Negocios"]},
+    "Economía Industrial": {"anio": 4, "duracion": "1°C", "correlativas": ["Macroeconomía y Pol. Económica", "Economía Bancaria y Financiera"]},
+    "Economía Bancaria y Financiera": {"anio": 4, "duracion": "1°C", "correlativas": ["Financiamiento"]},
+    "Gestión Ambiental y Empresa": {"anio": 4, "duracion": "1°C", "correlativas": ["Org. de la Producción y Tecnología", "Organización y Gestión"]},
+    "Admin. de Recursos Humanos": {"anio": 4, "duracion": "2°C", "correlativas": ["Gestión Ambiental y Empresa"]},
+    "Taller de Integración II": {"anio": 4, "duracion": "2°C", "correlativas": ["Sistemas de Organización", "Economía Bancaria y Financiera"]},
+
+    # 5TO AÑO
+    "Mediación y Negociación": {"anio": 5, "duracion": "1°C", "correlativas": ["Admin. de Recursos Humanos"]},
+    "Problemas Actuales de la Econ. Arg.": {"anio": 5, "duracion": "1°C", "correlativas": ["Taller de Integración II"]},
+    "Seminario: Resp. Social Empresaria": {"anio": 5, "duracion": "2°C", "correlativas": ["Ética y Empresa"]},
+    "Seminario: Economía Social": {"anio": 5, "duracion": "2°C", "correlativas": ["Políticas y Estrategias Des. Reg."]},
+    "Práctica Pre-Profesional": {"anio": 5, "duracion": "2°C", "correlativas": ["Taller de Integración II"]},
+    "Taller de Trabajo Final Integrador": {"anio": 5, "duracion": "ANUAL", "correlativas": ["Taller de Integración II", "Taller de Integración I"]},
+    "Ética y Empresa": {"anio": 5, "duracion": "2°C", "correlativas": ["Admin. de Recursos Humanos"]},
+    "Planeamiento Estratégico": {"anio": 5, "duracion": "2°C", "correlativas": ["Políticas y Estrategias Des. Reg."]},
+    "Políticas y Estrategias Des. Reg.": {"anio": 5, "duracion": "2°C", "correlativas": ["Taller de Integración II"]},
+    
+    # EXTRAS
+    "Nivel 1 - Inglés": {"anio": 4, "duracion": "Extra", "correlativas": []},
+    "Nivel 2 - Inglés": {"anio": 5, "duracion": "Extra", "correlativas": ["Nivel 1 - Inglés"]}
 }
 
 # --- CONEXIÓN A GOOGLE SHEETS ---
@@ -70,102 +82,147 @@ def guardar_registro(conn, df_nuevo):
 
 # --- APP PRINCIPAL ---
 def main():
-    st.title("🦅 Planificador UNLa")
+    st.title("🦅 Planificador UNLa 2025")
+    st.markdown("---")
+    
     df, conn = obtener_datos()
     
-    # --- SIDEBAR ---
-    st.sidebar.header("👤 Usuario")
+    # --- BARRA LATERAL (Usuario) ---
+    st.sidebar.header("👤 Identificación")
     usuario = st.sidebar.text_input("Tu Nombre:", placeholder="Ej: Enrique").strip().title()
 
+    # Si no hay usuario, mostrar resumen general
     if not usuario:
-        st.info("👈 Escribí tu nombre a la izquierda para entrar.")
+        st.info("👈 Por favor, escribí tu nombre en el menú de la izquierda para comenzar.")
+        
         if not df.empty:
-            st.divider()
-            st.write("📊 **Estado General del Grupo**")
+            st.subheader("📊 Estado del Grupo")
             cursada = df[df["Estado"] == "Cursando"]
             if not cursada.empty:
+                # Agrupar por materia
                 resumen = cursada.groupby("Materia")["Nombre"].unique().reset_index()
                 resumen["Estudiantes"] = resumen["Nombre"].apply(lambda x: ", ".join(x))
-                resumen["Total"] = resumen["Nombre"].apply(len)
-                st.dataframe(resumen[["Materia", "Total", "Estudiantes"]], hide_index=True, use_container_width=True)
+                resumen["Inscriptos"] = resumen["Nombre"].apply(len)
+                # Mostrar tabla ordenada
+                st.dataframe(
+                    resumen[["Materia", "Inscriptos", "Estudiantes"]].sort_values(by="Inscriptos", ascending=False),
+                    hide_index=True,
+                    use_container_width=True
+                )
         return
 
-    # Filtrar mis datos
+    # --- FILTRAR DATOS DEL USUARIO ---
     mis_datos = df[df["Nombre"] == usuario]
     mis_aprobadas = mis_datos[mis_datos["Estado"] == "Aprobada"]["Materia"].tolist()
     mis_cursando = mis_datos[mis_datos["Estado"] == "Cursando"]["Materia"].tolist()
 
-    # --- PESTAÑAS (Ahora son 4) ---
-    tab1, tab2, tab3, tab4 = st.tabs(["✅ Aprobadas", "📅 Inscribirse", "👥 Ver Grupo", "🎒 Mis Inscripciones"])
+    # --- PESTAÑAS ---
+    tab1, tab2, tab3, tab4 = st.tabs(["✅ Historial", "📅 Inscripción", "👥 Grupo", "🎒 Mis Materias"])
 
-    # 1. APROBADAS
+    # 1. HISTORIAL (APROBADAS)
     with tab1:
-        st.write("Marcá lo que ya aprobaste (para desbloquear las siguientes):")
-        nuevas = mis_aprobadas.copy()
-        with st.expander("Ver lista de materias"):
-            for mat in PLAN_ESTUDIOS:
-                if st.checkbox(mat, value=(mat in mis_aprobadas), key=f"chk_{mat}"):
-                    if mat not in nuevas: nuevas.append(mat)
-                elif mat in nuevas: nuevas.remove(mat)
+        st.subheader("Marcá tus materias aprobadas")
+        st.caption("Esto es necesario para que el sistema sepa qué correlativas tenés.")
         
-        if st.button("Guardar Historial"):
+        nuevas_aprobadas = mis_aprobadas.copy()
+        
+        # Mostrar materias por año para que sea más ordenado
+        for anio in range(1, 6):
+            with st.expander(f"Materias de {anio}° Año"):
+                cols = st.columns(2)
+                materias_anio = [m for m, d in PLAN_ESTUDIOS.items() if d['anio'] == anio]
+                
+                for i, materia in enumerate(materias_anio):
+                    checked = cols[i % 2].checkbox(materia, value=(materia in mis_aprobadas), key=f"chk_{materia}")
+                    if checked and materia not in nuevas_aprobadas:
+                        nuevas_aprobadas.append(materia)
+                    elif not checked and materia in nuevas_aprobadas:
+                        nuevas_aprobadas.remove(materia)
+        
+        if st.button("💾 Guardar Historial"):
+            # Borrar historial viejo y guardar el nuevo
             df = df[~((df["Nombre"] == usuario) & (df["Estado"] == "Aprobada"))]
-            nuevos = [{"Nombre": usuario, "Materia": m, "Estado": "Aprobada"} for m in nuevas]
-            df = pd.concat([df, pd.DataFrame(nuevos)], ignore_index=True)
+            nuevos_registros = [{"Nombre": usuario, "Materia": m, "Estado": "Aprobada"} for m in nuevas_aprobadas]
+            df = pd.concat([df, pd.DataFrame(nuevos_registros)], ignore_index=True)
             guardar_registro(conn, df)
 
-    # 2. INSCRIBIRSE
+    # 2. INSCRIPCIÓN (CURSADA)
     with tab2:
-        disponibles = [m for m, d in PLAN_ESTUDIOS.items() 
-                       if m not in mis_aprobadas and m not in mis_cursando 
-                       and all(c in mis_aprobadas for c in d['correlativas'])]
+        st.subheader("Inscripción 2025")
+        
+        # Lógica de Correlativas
+        disponibles = []
+        bloqueadas = []
+        
+        for materia, data in PLAN_ESTUDIOS.items():
+            if materia in mis_aprobadas: continue
+            if materia in mis_cursando: continue
+            
+            # Chequear correlativas
+            faltan = [c for c in data['correlativas'] if c not in mis_aprobadas]
+            
+            if not faltan:
+                disponibles.append(materia)
+            else:
+                bloqueadas.append((materia, faltan))
         
         if disponibles:
-            with st.form("inscripcion"):
-                seleccion = st.multiselect("Materias disponibles:", disponibles)
-                if st.form_submit_button("¡Anotarme!"):
+            with st.form("form_inscripcion"):
+                st.write("##### Materias habilitadas para vos:")
+                
+                # Función para mostrar nombre lindo en la lista
+                def formato(m):
+                    info = PLAN_ESTUDIOS[m]
+                    return f"{m} ({info['duracion']} - {info['anio']}° Año)"
+
+                seleccion = st.multiselect("Seleccioná:", disponibles, format_func=formato)
+                
+                if st.form_submit_button("Confirmar Inscripción"):
                     nuevos = [{"Nombre": usuario, "Materia": m, "Estado": "Cursando"} for m in seleccion]
                     df = pd.concat([df, pd.DataFrame(nuevos)], ignore_index=True)
                     guardar_registro(conn, df)
         else:
-            st.success("No tenés materias pendientes para cursar.")
+            st.success("¡Estás al día! No tenés materias pendientes habilitadas.")
 
     # 3. VER GRUPO
     with tab3:
-        materia = st.selectbox("Ver quién cursa:", list(PLAN_ESTUDIOS.keys()))
-        gente = df[(df["Materia"] == materia) & (df["Estado"] == "Cursando")]["Nombre"].unique()
-        if len(gente) > 0:
-            st.success(f"Estudiantes ({len(gente)}): {', '.join(gente)}")
+        st.subheader("Buscador de Compañeros")
+        materia_busqueda = st.selectbox("Elegí una materia:", list(PLAN_ESTUDIOS.keys()))
+        
+        alumnos = df[(df["Materia"] == materia_busqueda) & (df["Estado"] == "Cursando")]["Nombre"].unique()
+        
+        if len(alumnos) > 0:
+            st.success(f"Estudiantes inscriptos ({len(alumnos)}):")
+            st.markdown(f"### 🧑‍🎓 {', '.join(alumnos)}")
         else:
-            st.warning("Nadie anotado acá.")
+            st.warning("Nadie se anotó en esta materia todavía.")
 
-    # 4. MIS INSCRIPCIONES (NUEVA PESTAÑA)
+    # 4. MIS INSCRIPCIONES (Resumen)
     with tab4:
-        st.subheader(f"Materias de {usuario}")
+        st.subheader(f"Inscripciones de {usuario}")
         
         if mis_cursando:
-            # Mostrar tabla linda con el año
             datos_tabla = []
             for m in mis_cursando:
-                anio = PLAN_ESTUDIOS.get(m, {}).get("anio", "-")
-                datos_tabla.append({"Materia": m, "Año": f"{anio}° Año"})
+                info = PLAN_ESTUDIOS.get(m, {})
+                datos_tabla.append({
+                    "Materia": m,
+                    "Año": f"{info.get('anio', '-')}°",
+                    "Duración": info.get("duracion", "-")
+                })
             
-            st.table(pd.DataFrame(datos_tabla))
+            st.dataframe(pd.DataFrame(datos_tabla), use_container_width=True, hide_index=True)
             
-            # Opción para borrar
             st.divider()
-            st.write("🗑️ **¿Te equivocaste? Date de baja acá:**")
-            a_borrar = st.multiselect("Seleccioná la materia para borrar:", mis_cursando)
+            st.write("🛑 **Dar de baja materias:**")
+            a_borrar = st.multiselect("Elegí la materia que querés borrar:", mis_cursando)
             
-            if st.button("Confirmar Baja"):
+            if st.button("Eliminar Seleccionadas"):
                 if a_borrar:
-                    # Filtramos el DF para sacar esas filas
                     df = df[~((df["Nombre"] == usuario) & (df["Materia"].isin(a_borrar)) & (df["Estado"] == "Cursando"))]
                     guardar_registro(conn, df)
-                else:
-                    st.warning("Seleccioná al menos una materia para borrar.")
         else:
-            st.info("Todavía no te anotaste en ninguna materia para este cuatrimestre.")
+            st.info("No te anotaste en ninguna materia por ahora.")
 
 if __name__ == "__main__":
     main()
