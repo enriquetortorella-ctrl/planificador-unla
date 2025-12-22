@@ -1,9 +1,32 @@
 import streamlit as st
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
+from datetime import datetime, timedelta
 
 # --- 1. CONFIGURACIÓN DE PÁGINA (Icono Círculo Rojo) ---
 st.set_page_config(page_title="Círculo Rojo - UNLa", page_icon="🔴", layout="wide")
+
+# --- BASE DE DATOS DE FECHAS (Calendario Académico 2025-2026) ---
+CALENDARIO = [
+    # --- 2025 ---
+    {"fecha": "2025-02-24", "evento": "Inscripción Cursada 1° Cuatrimestre 2025"},
+    {"fecha": "2025-04-22", "evento": "Inscripción Finales (Turno Mayo)"},
+    {"fecha": "2025-05-05", "evento": "Inicio Finales (Turno Mayo)"},
+    {"fecha": "2025-07-04", "evento": "Inscripción Finales (Turno Julio - 1° y 2° Llamado)"},
+    {"fecha": "2025-07-21", "evento": "Inscripción Finales (Turno Julio - 2° Llamado Complementario)"},
+    {"fecha": "2025-08-05", "evento": "Inscripción Cursada 2° Cuatrimestre 2025"},
+    {"fecha": "2025-09-20", "evento": "Inscripción Finales (Turno Septiembre)"},
+    {"fecha": "2025-11-24", "evento": "Inscripción Finales (Turno Diciembre - 1° y 2° Llamado)"},
+    {"fecha": "2025-12-09", "evento": "Inscripción Finales (Turno Diciembre - 2° Llamado Complementario)"},
+    
+    # --- 2026 ---
+    {"fecha": "2026-02-09", "evento": "Inscripción Cursada (Trayecto Inicial 2026)"},
+    {"fecha": "2026-03-17", "evento": "Inscripción Cursada 1° Cuatrimestre 2026 (General)"},
+    {"fecha": "2026-04-20", "evento": "Inscripción Finales (Turno Mayo 2026)"},
+    {"fecha": "2026-07-06", "evento": "Inscripción Finales (Turno Julio 2026)"},
+    {"fecha": "2026-08-07", "evento": "Inscripción Cursada 2° Cuatrimestre 2026"},
+    {"fecha": "2026-11-30", "evento": "Inscripción Finales (Turno Diciembre 2026)"}
+]
 
 # --- PLAN DE ESTUDIOS 2025 ---
 PLAN_ESTUDIOS = {
@@ -82,6 +105,25 @@ def guardar_registro(conn, df_nuevo):
 # --- APP PRINCIPAL ---
 def main():
     st.title("🔴 Planificador Círculo Rojo")
+    
+    # --- SISTEMA DE ALERTAS (POPUP SUPERIOR) ---
+    hoy = datetime.now().date()
+    # Margen de aviso (días antes)
+    dias_aviso = 7 
+    
+    for evento in CALENDARIO:
+        fecha_evento = datetime.strptime(evento["fecha"], "%Y-%m-%d").date()
+        dias_restantes = (fecha_evento - hoy).days
+        
+        # 1. Alerta de "ABIERTO HOY"
+        if dias_restantes == 0:
+            st.success(f"🚨 **¡HOY!** {evento['evento']}. ¡No te olvides de anotarte!")
+            st.toast(f"¡Hoy es {evento['evento']}!", icon="🔔")
+        
+        # 2. Alerta de "PRÓXIMAMENTE" (dentro de 7 días)
+        elif 0 < dias_restantes <= dias_aviso:
+            st.warning(f"⚠️ **Atención:** En {dias_restantes} días comienza: **{evento['evento']}** ({fecha_evento.strftime('%d/%m')})")
+
     st.markdown("---")
     
     df, conn = obtener_datos()
@@ -90,14 +132,29 @@ def main():
     st.sidebar.header("👤 Identificación")
     usuario = st.sidebar.text_input("Tu Nombre:", placeholder="Ej: Enrique").strip().title()
 
-    # --- 2. SECCIÓN LINKS IMPORTANTES (Siempre visible) ---
+    # --- SECCIÓN LINKS IMPORTANTES ---
     st.sidebar.markdown("---")
-    st.sidebar.subheader("🔗 Links Importantes")
+    st.sidebar.subheader("🔗 Accesos Rápidos")
     st.sidebar.link_button("🎓 SIU Guaraní", "https://estudiantes.unla.edu.ar/")
     st.sidebar.link_button("🏫 Campus Virtual", "https://campus.unla.edu.ar/aulas/login/index.php")
     st.sidebar.link_button("🏛️ Web UNLa", "https://www.unla.edu.ar/")
 
-    # Si NO hay usuario, mostramos el resumen y cortamos la ejecución
+    # --- SECCIÓN PRÓXIMAS FECHAS ---
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("📅 Próximas Fechas")
+    
+    # Filtrar eventos futuros y mostrar los próximos 3
+    eventos_futuros = [e for e in CALENDARIO if datetime.strptime(e["fecha"], "%Y-%m-%d").date() >= hoy]
+    if eventos_futuros:
+        for e in eventos_futuros[:3]: # Solo los 3 primeros
+            f_obj = datetime.strptime(e["fecha"], "%Y-%m-%d")
+            f_str = f_obj.strftime("%d/%m")
+            st.sidebar.write(f"• **{f_str}**: {e['evento']}")
+    else:
+        st.sidebar.caption("No hay fechas próximas cargadas.")
+
+
+    # Si NO hay usuario, mostramos el resumen
     if not usuario:
         st.info("👈 Escribí tu nombre a la izquierda para comenzar.")
         
@@ -109,7 +166,6 @@ def main():
                 resumen["Estudiantes"] = resumen["Nombre"].apply(lambda x: ", ".join(x))
                 resumen["Inscriptos"] = resumen["Nombre"].apply(len)
                 
-                # Tabla resumen
                 st.dataframe(
                     resumen[["Materia", "Inscriptos", "Estudiantes"]].sort_values(by="Inscriptos", ascending=False),
                     hide_index=True,
@@ -136,7 +192,6 @@ def main():
         st.sidebar.success("¡FELICITACIONES! 🎓🎉")
 
     # --- PESTAÑAS ---
-    # Cambié el nombre de la Tab 3 a "Estado del Grupo"
     tab1, tab2, tab3, tab4 = st.tabs(["✅ Historial", "📅 Inscripción", "📊 Estado del Grupo", "🎒 Mis Materias"])
 
     # 1. HISTORIAL (APROBADAS)
@@ -199,11 +254,10 @@ def main():
         else:
             st.success("¡Estás al día! No tenés materias pendientes habilitadas.")
 
-    # 3. ESTADO DEL GRUPO (Ahora incluye la tabla completa)
+    # 3. ESTADO DEL GRUPO (Tabla Completa + Buscador)
     with tab3:
         st.subheader("📊 Estado General del Grupo")
         
-        # MOSTRAR TABLA GENERAL PRIMERO
         if not df.empty:
             cursada_general = df[df["Estado"] == "Cursando"]
             if not cursada_general.empty:
