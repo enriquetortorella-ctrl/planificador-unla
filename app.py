@@ -7,6 +7,13 @@ import time
 # --- 1. CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Círculo Rojo - UNLa", page_icon="🔴", layout="wide")
 
+# --- CONTROL DE FESTEJOS (SESSION STATE) ---
+# Esto evita que los globos salgan cada vez que haces clic
+if "celebro_analista" not in st.session_state:
+    st.session_state["celebro_analista"] = False
+if "celebro_licenciado" not in st.session_state:
+    st.session_state["celebro_licenciado"] = False
+
 # --- BASE DE DATOS DE FECHAS (Calendario Oficial 2025 + 2026) ---
 CALENDARIO = [
     {"fecha": "2025-02-24", "evento": "Inscripción Cursada 1° Cuatrimestre 2025"},
@@ -84,10 +91,15 @@ def obtener_datos():
         df = conn.read(worksheet=0, ttl=0)
         return df, conn
     except Exception as e:
-        st.error("Error de conexión. Verificá los Secrets.")
+        # No mostramos error acá para no asustar, devolvemos None y manejamos luego
         return pd.DataFrame(columns=["Nombre", "Materia", "Estado"]), None
 
 def guardar_registro(conn, df_nuevo):
+    # Protección contra el error "NoneType"
+    if conn is None:
+        st.error("⚠️ Conexión inestable: No se pudo guardar. Por favor, recargá la página (F5) e intentá de nuevo.")
+        return
+
     try:
         conn.update(worksheet=0, data=df_nuevo)
         st.cache_data.clear()
@@ -96,7 +108,7 @@ def guardar_registro(conn, df_nuevo):
     except Exception as e:
         st.error(f"Error al guardar: {e}")
 
-# --- FUNCIÓN DE FESTEJO DE TÍTULOS (CORREGIDA: COLOR DE LETRA) ---
+# --- FUNCIÓN DE FESTEJO DE TÍTULOS (CORREGIDA) ---
 def verificar_titulos(mis_aprobadas, usuario):
     # 1. TÍTULO INTERMEDIO (Todo 1°, 2° y 3° año aprobado)
     materias_intermedio = [m for m, d in PLAN_ESTUDIOS.items() if d['anio'] in [1, 2, 3]]
@@ -106,10 +118,12 @@ def verificar_titulos(mis_aprobadas, usuario):
     materias_final = list(PLAN_ESTUDIOS.keys())
     tiene_final = set(materias_final).issubset(set(mis_aprobadas))
 
-    # Logica de visualización
+    resultado = None
+
+    # Lógica Licenciado
     if tiene_final:
-        st.snow()
-        # Forzamos color oscuro (#155724) en todos los textos para que se vea bien
+        resultado = "Licenciado/a"
+        # Mostrar cartel SIEMPRE
         st.markdown(f"""
         <div style="background-color:#d4edda;padding:20px;border-radius:10px;text-align:center;border:2px solid #28a745">
             <h1 style="color:#155724;margin:0;">🎓 ¡FELICITACIONES {usuario.upper()}! 🎓</h1>
@@ -118,11 +132,16 @@ def verificar_titulos(mis_aprobadas, usuario):
         </div>
         <br>
         """, unsafe_allow_html=True)
-        return "Licenciado/a"
+        
+        # Festejar SOLO si no festejó antes en esta sesión
+        if not st.session_state["celebro_licenciado"]:
+            st.snow()
+            st.session_state["celebro_licenciado"] = True
     
+    # Lógica Analista (Solo si no es Licenciado aun)
     elif tiene_intermedio:
-        st.balloons()
-        # Forzamos color oscuro (#856404) en todos los textos
+        resultado = "Analista"
+        # Mostrar cartel SIEMPRE
         st.markdown(f"""
         <div style="background-color:#fff3cd;padding:20px;border-radius:10px;text-align:center;border:2px solid #ffc107">
             <h1 style="color:#856404;margin:0;">✨ ¡FELICITACIONES {usuario.upper()}! ✨</h1>
@@ -131,9 +150,13 @@ def verificar_titulos(mis_aprobadas, usuario):
         </div>
         <br>
         """, unsafe_allow_html=True)
-        return "Analista"
+        
+        # Festejar SOLO si no festejó antes en esta sesión
+        if not st.session_state["celebro_analista"]:
+            st.balloons()
+            st.session_state["celebro_analista"] = True
     
-    return None
+    return resultado
 
 # --- APP PRINCIPAL ---
 def main():
@@ -300,3 +323,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
