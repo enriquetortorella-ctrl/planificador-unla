@@ -1,24 +1,21 @@
 import streamlit as st
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
-from datetime import datetime, timedelta
+from datetime import datetime
+import time
 
-# --- 1. CONFIGURACIÓN DE PÁGINA (Icono Círculo Rojo) ---
+# --- 1. CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Círculo Rojo - UNLa", page_icon="🔴", layout="wide")
 
-# --- BASE DE DATOS DE FECHAS (Calendario Oficial 2025 + Adelanto 2026) ---
-# Fuente: Calendario Académico UNLa 2025 y 2026
+# --- BASE DE DATOS DE FECHAS (Calendario Oficial 2025 + 2026) ---
 CALENDARIO = [
-    # --- 2025 ---
     {"fecha": "2025-02-24", "evento": "Inscripción Cursada 1° Cuatrimestre 2025"},
     {"fecha": "2025-04-22", "evento": "Inscripción Finales (Turno Mayo)"},
     {"fecha": "2025-05-05", "evento": "Inicio Finales (Turno Mayo)"},
     {"fecha": "2025-07-04", "evento": "Inscripción Finales (Turno Julio)"},
-    {"fecha": "2025-07-28", "evento": "Inscripción Cursada 2° Cuatrimestre 2025"}, # Fecha corregida según calendario oficial
+    {"fecha": "2025-07-28", "evento": "Inscripción Cursada 2° Cuatrimestre 2025"},
     {"fecha": "2025-09-20", "evento": "Inscripción Finales (Turno Septiembre)"},
     {"fecha": "2025-11-24", "evento": "Inscripción Finales (Turno Diciembre)"},
-    
-    # --- VERANO Y 2026 (Lo que viste al final del calendario) ---
     {"fecha": "2025-11-27", "evento": "📝 Inscripción CURSOS DE VERANO 2026 (Idiomas/Informática)"},
     {"fecha": "2026-02-09", "evento": "Inscripción Finales (Turno Feb/Marzo 2026)"},
     {"fecha": "2026-03-17", "evento": "Inscripción Cursada 1° Cuatrimestre 2026"},
@@ -74,14 +71,13 @@ PLAN_ESTUDIOS = {
     "Planeamiento Estratégico": {"anio": 5, "duracion": "2°C", "correlativas": ["Políticas y Estrategias Des. Reg."]},
     "Políticas y Estrategias Des. Reg.": {"anio": 5, "duracion": "2°C", "correlativas": ["Taller de Integración II"]},
     
-    # --- REQUISITOS EXTRACURRICULARES (Idiomas e Informática) ---
-    # Estos suelen cursarse en Verano/Invierno o contraturno
+    # EXTRAS (REQUISITOS)
     "Nivel 1 - Inglés": {"anio": 99, "duracion": "Requisito", "correlativas": []},
     "Nivel 2 - Inglés": {"anio": 99, "duracion": "Requisito", "correlativas": ["Nivel 1 - Inglés"]},
-    "Informática (Módulos)": {"anio": 99, "duracion": "Requisito", "correlativas": []} 
+    "Informática (Módulos)": {"anio": 99, "duracion": "Requisito", "correlativas": []}
 }
 
-# --- CONEXIÓN A GOOGLE SHEETS ---
+# --- CONEXIÓN GOOGLE SHEETS ---
 def obtener_datos():
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
@@ -100,57 +96,86 @@ def guardar_registro(conn, df_nuevo):
     except Exception as e:
         st.error(f"Error al guardar: {e}")
 
+# --- FUNCIÓN DE FESTEJO DE TÍTULOS ---
+def verificar_titulos(mis_aprobadas, usuario):
+    # 1. TÍTULO INTERMEDIO (Todo 1°, 2° y 3° año aprobado)
+    materias_intermedio = [m for m, d in PLAN_ESTUDIOS.items() if d['anio'] in [1, 2, 3]]
+    tiene_intermedio = set(materias_intermedio).issubset(set(mis_aprobadas))
+    
+    # 2. TÍTULO FINAL (Todo el plan aprobado)
+    materias_final = list(PLAN_ESTUDIOS.keys())
+    tiene_final = set(materias_final).issubset(set(mis_aprobadas))
+
+    # Logica de visualización
+    if tiene_final:
+        st.snow() # Lluvia de nieve/papelitos
+        st.markdown(f"""
+        <div style="background-color:#d4edda;padding:20px;border-radius:10px;text-align:center;border:2px solid #28a745">
+            <h1 style="color:#155724;margin:0;">🎓 ¡FELICITACIONES {usuario.upper()}! 🎓</h1>
+            <h3 style="color:#155724;">Ya sos LICENCIADO/A EN ECONOMÍA EMPRESARIAL</h3>
+            <p>¡Completaste todo el plan de estudios! 🍾</p>
+        </div>
+        <br>
+        """, unsafe_allow_html=True)
+        return "Licenciado/a"
+    
+    elif tiene_intermedio:
+        st.balloons() # Globos
+        st.markdown(f"""
+        <div style="background-color:#fff3cd;padding:20px;border-radius:10px;text-align:center;border:2px solid #ffc107">
+            <h1 style="color:#856404;margin:0;">✨ ¡FELICITACIONES {usuario.upper()}! ✨</h1>
+            <h3 style="color:#856404;">Obtuviste el Título Intermedio: ANALISTA ECONÓMICO EMPRESARIAL</h3>
+            <p>¡Completaste los primeros 3 años de la carrera! 🚀</p>
+        </div>
+        <br>
+        """, unsafe_allow_html=True)
+        return "Analista"
+    
+    return None
+
 # --- APP PRINCIPAL ---
 def main():
     st.title("🔴 Planificador Círculo Rojo")
     
-    # --- SISTEMA DE ALERTAS (POPUP SUPERIOR) ---
+    # --- ALERTAS DE FECHAS ---
     hoy = datetime.now().date()
-    dias_aviso = 10 # Aviso con 10 días de anticipación
+    dias_aviso = 10
     
     for evento in CALENDARIO:
         fecha_evento = datetime.strptime(evento["fecha"], "%Y-%m-%d").date()
         dias_restantes = (fecha_evento - hoy).days
-        
-        # 1. Alerta de "ABIERTO HOY"
         if dias_restantes == 0:
-            st.success(f"🚨 **¡HOY!** {evento['evento']}. ¡No te olvides de anotarte!")
-            st.toast(f"¡Hoy es {evento['evento']}!", icon="🔔")
-        
-        # 2. Alerta de "PRÓXIMAMENTE"
+            st.success(f"🚨 **¡HOY!** {evento['evento']}")
         elif 0 < dias_restantes <= dias_aviso:
-            st.warning(f"⚠️ **Atención:** En {dias_restantes} días: **{evento['evento']}** ({fecha_evento.strftime('%d/%m')})")
+            st.warning(f"⚠️ **Pronto:** {evento['evento']} (en {dias_restantes} días)")
 
     st.markdown("---")
-    
     df, conn = obtener_datos()
     
-    # --- BARRA LATERAL ---
+    # --- SIDEBAR ---
     st.sidebar.header("👤 Identificación")
     usuario = st.sidebar.text_input("Tu Nombre:", placeholder="Ej: Enrique").strip().title()
 
-    # --- LINKS IMPORTANTES ---
+    # LINKS
     st.sidebar.markdown("---")
     st.sidebar.subheader("🔗 Accesos Rápidos")
     st.sidebar.link_button("🎓 SIU Guaraní", "https://estudiantes.unla.edu.ar/")
     st.sidebar.link_button("🏫 Campus Virtual", "https://campus.unla.edu.ar/aulas/login/index.php")
-    st.sidebar.link_button("🏛️ Web UNLa", "https://www.unla.edu.ar/")
-
-    # --- PRÓXIMAS FECHAS ---
+    
+    # FECHAS
     st.sidebar.markdown("---")
     st.sidebar.subheader("📅 Próximas Fechas")
     eventos_futuros = [e for e in CALENDARIO if datetime.strptime(e["fecha"], "%Y-%m-%d").date() >= hoy]
     if eventos_futuros:
-        for e in eventos_futuros[:4]: # Muestra los próximos 4
-            f_obj = datetime.strptime(e["fecha"], "%Y-%m-%d")
-            f_str = f_obj.strftime("%d/%m")
+        for e in eventos_futuros[:3]:
+            f_str = datetime.strptime(e["fecha"], "%Y-%m-%d").strftime("%d/%m")
             st.sidebar.write(f"• **{f_str}**: {e['evento']}")
     else:
-        st.sidebar.caption("No hay fechas próximas cargadas.")
+        st.sidebar.caption("Sin fechas próximas.")
 
     if not usuario:
         st.info("👈 Escribí tu nombre a la izquierda para comenzar.")
-        # RESUMEN GRUPO SIN LOGIN
+        # Resumen sin login
         if not df.empty:
             st.subheader("📊 Estado del Grupo")
             cursada = df[df["Estado"] == "Cursando"]
@@ -166,14 +191,19 @@ def main():
     mis_aprobadas = mis_datos[mis_datos["Estado"] == "Aprobada"]["Materia"].tolist()
     mis_cursando = mis_datos[mis_datos["Estado"] == "Cursando"]["Materia"].tolist()
 
+    # --- VERIFICAR TÍTULOS Y FESTEJO ---
+    titulo_obtenido = verificar_titulos(mis_aprobadas, usuario)
+
     # --- PROGRESO ---
-    total_materias = len(PLAN_ESTUDIOS)
-    aprobadas_count = len(mis_aprobadas)
-    progreso = aprobadas_count / total_materias if total_materias > 0 else 0
-    
+    total = len(PLAN_ESTUDIOS)
+    progreso = len(mis_aprobadas) / total if total > 0 else 0
     st.sidebar.markdown("---")
-    st.sidebar.write(f"🎓 **Progreso de Carrera:** {int(progreso * 100)}%")
+    st.sidebar.write(f"🎓 **Progreso:** {int(progreso * 100)}%")
     st.sidebar.progress(progreso)
+    
+    # Medalla en Sidebar si tiene título
+    if titulo_obtenido:
+        st.sidebar.success(f"🏆 **Título:** {titulo_obtenido}")
 
     # --- PESTAÑAS ---
     tab1, tab2, tab3, tab4 = st.tabs(["✅ Historial", "📅 Inscripción", "📊 Estado del Grupo", "🎒 Mis Materias"])
@@ -182,7 +212,6 @@ def main():
         st.subheader("Marcá tus materias aprobadas")
         nuevas_aprobadas = mis_aprobadas.copy()
         
-        # AÑOS NORMALES
         for anio in range(1, 6):
             with st.expander(f"Materias de {anio}° Año"):
                 cols = st.columns(2)
@@ -192,9 +221,7 @@ def main():
                     if checked and materia not in nuevas_aprobadas: nuevas_aprobadas.append(materia)
                     elif not checked and materia in nuevas_aprobadas: nuevas_aprobadas.remove(materia)
         
-        # REQUISITOS EXTRA (Idiomas/Informatica)
-        with st.expander("🌍 Requisitos Extracurriculares (Inglés / Informática)"):
-            st.info("Estas materias suelen cursarse en **Verano** o a contraturno.")
+        with st.expander("🌍 Requisitos (Inglés / Informática)"):
             cols = st.columns(2)
             materias_extra = [m for m, d in PLAN_ESTUDIOS.items() if d['anio'] == 99]
             for i, materia in enumerate(materias_extra):
@@ -241,8 +268,6 @@ def main():
                 res["Estudiantes"] = res["Nombre"].apply(lambda x: ", ".join(x))
                 res["Inscriptos"] = res["Nombre"].apply(len)
                 st.dataframe(res[["Materia", "Inscriptos", "Estudiantes"]].sort_values(by="Inscriptos", ascending=False), hide_index=True, use_container_width=True)
-            else:
-                st.info("Sin inscripciones activas.")
         
         st.divider()
         st.write("🔍 **Buscar materia:**")
