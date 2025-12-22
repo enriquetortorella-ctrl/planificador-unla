@@ -7,10 +7,9 @@ import time
 # --- 1. CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Círculo Rojo - UNLa", page_icon="🔴", layout="wide")
 
-# --- CONTROL DE ESTADO (SESSION STATE) ---
+# --- CONTROL DE ESTADO ---
 if "celebro_analista" not in st.session_state: st.session_state["celebro_analista"] = False
 if "celebro_licenciado" not in st.session_state: st.session_state["celebro_licenciado"] = False
-# Variable para mostrar mensaje de aliento tras recargar
 if "mensaje_aliento_pendiente" not in st.session_state: st.session_state["mensaje_aliento_pendiente"] = None
 
 # --- BASE DE DATOS DE FECHAS ---
@@ -22,12 +21,12 @@ CALENDARIO = [
     {"fecha": "2025-07-28", "evento": "Inscripción Cursada 2° Cuatrimestre 2025"},
     {"fecha": "2025-09-20", "evento": "Inscripción Finales (Turno Septiembre)"},
     {"fecha": "2025-11-24", "evento": "Inscripción Finales (Turno Diciembre)"},
-    {"fecha": "2025-11-27", "evento": "📝 Inscripción CURSOS DE VERANO 2026 (Idiomas/Informática)"},
+    {"fecha": "2025-11-27", "evento": "📝 Inscripción CURSOS DE VERANO 2026"},
     {"fecha": "2026-02-09", "evento": "Inscripción Finales (Turno Feb/Marzo 2026)"},
     {"fecha": "2026-03-17", "evento": "Inscripción Cursada 1° Cuatrimestre 2026"},
 ]
 
-# --- PLAN DE ESTUDIOS 2025 ---
+# --- PLAN DE ESTUDIOS ---
 PLAN_ESTUDIOS = {
     # 1ER AÑO
     "Taller de Producción de Textos": {"anio": 1, "duracion": "1°C", "correlativas": []},
@@ -83,7 +82,14 @@ PLAN_ESTUDIOS = {
     "Informática (Módulos)": {"anio": 99, "duracion": "Requisito", "correlativas": []}
 }
 
-# --- SISTEMA DE MASCOTAS ---
+# --- BIBLIOTECA DE LINKS (¡ACÁ TENÉS QUE PONER LOS LINKS DE DRIVE!) ---
+BIBLIOTECA = {
+    "Elementos de Matemática": "https://drive.google.com/drive/u/0/", # Ejemplo
+    "Contabilidad": "https://drive.google.com/drive/u/0/", 
+    "Microeconomía": "https://drive.google.com/drive/u/0/",
+    # Agregá más materias acá...
+}
+
 MASCOTAS = {
     "Lagarto 🦎": ["🥚", "🦎", "🐊", "🦖", "👑🦖👑"],
     "Dragón 🐉": ["🥚", "🦎", "🐲", "🐉", "🔥🐲🔥"],
@@ -93,8 +99,6 @@ MASCOTAS = {
     "Lobo 🐺": ["🦴", "🐕", "🐺", "🌕", "👑🐺👑"]
 }
 
-# --- MENSAJES DE ALIENTO (MATERIAS DIFÍCILES) ---
-# Aquí configuramos qué materias disparan felicitaciones especiales
 MENSAJES_ALIENTO = {
     "Elementos de Matemática": "¡Qué genio! Aprobaste Elementos, una de las más difíciles. 🚀",
     "Organización y Gestión": "¡Excelente! Superaste Gestión. ¡Un paso gigante! 👏",
@@ -130,7 +134,7 @@ def mostrar_mensaje_aliento():
         mensaje = st.session_state["mensaje_aliento_pendiente"]
         st.toast(mensaje, icon="🎉")
         st.balloons()
-        st.session_state["mensaje_aliento_pendiente"] = None # Limpiar para que no salga de nuevo
+        st.session_state["mensaje_aliento_pendiente"] = None
 
 # --- VERIFICAR TÍTULOS ---
 def verificar_titulos(mis_aprobadas, usuario):
@@ -166,7 +170,7 @@ def verificar_titulos(mis_aprobadas, usuario):
 def main():
     st.title("🔴 Planificador Círculo Rojo")
     
-    # ALERTAS DE FECHAS
+    # ALERTAS
     hoy = datetime.now().date()
     dias_aviso = 10
     for evento in CALENDARIO:
@@ -206,12 +210,10 @@ def main():
                 st.dataframe(resumen[["Materia", "Inscriptos", "Estudiantes"]].sort_values(by="Inscriptos", ascending=False), hide_index=True, use_container_width=True)
         return
 
-    # --- DATOS USUARIO ---
     mis_datos = df[df["Nombre"] == usuario]
     mis_aprobadas = mis_datos[mis_datos["Estado"] == "Aprobada"]["Materia"].tolist()
     mis_cursando = mis_datos[mis_datos["Estado"] == "Cursando"]["Materia"].tolist()
 
-    # --- GAMIFICACIÓN: MASCOTA Y PROGRESO ---
     total = len(PLAN_ESTUDIOS)
     progreso = len(mis_aprobadas) / total if total > 0 else 0
     
@@ -219,29 +221,24 @@ def main():
     st.sidebar.subheader("👾 Tu Compañero")
     idx_defecto = list(MASCOTAS.keys()).index("Lagarto 🦎")
     tipo_mascota = st.sidebar.selectbox("Elegí tu avatar:", list(MASCOTAS.keys()), index=idx_defecto)
-    
     fases = MASCOTAS[tipo_mascota]
     indice_fase = 0
     if progreso >= 1.0: indice_fase = 4
     elif progreso >= 0.75: indice_fase = 3
     elif progreso >= 0.50: indice_fase = 2
     elif progreso >= 0.25: indice_fase = 1
-    
     avatar_actual = fases[indice_fase]
     st.sidebar.markdown(f"<h1 style='text-align: center; font-size: 60px;'>{avatar_actual}</h1>", unsafe_allow_html=True)
     st.sidebar.caption(f"Nivel {indice_fase + 1}/5")
     st.sidebar.write(f"🎓 **Progreso:** {int(progreso * 100)}%")
     st.sidebar.progress(progreso)
 
-    # --- MOSTRAR MENSAJE ALIENTO (SI CORRESPONDE) ---
     mostrar_mensaje_aliento()
-
-    # --- VERIFICAR TÍTULOS ---
     titulo_obtenido = verificar_titulos(mis_aprobadas, usuario)
     if titulo_obtenido: st.sidebar.success(f"🏆 **Título:** {titulo_obtenido}")
 
-    # --- PESTAÑAS ---
-    tab1, tab2, tab3, tab4 = st.tabs(["✅ Historial", "📅 Inscripción", "📊 Estado del Grupo", "🎒 Mis Materias"])
+    # --- PESTAÑAS (AHORA SON 5) ---
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["✅ Historial", "📅 Inscripción", "📊 Estado del Grupo", "🎒 Mis Materias", "📚 Biblioteca"])
 
     with tab1:
         st.subheader("Marcá tus materias aprobadas")
@@ -254,7 +251,6 @@ def main():
                     checked = cols[i % 2].checkbox(materia, value=(materia in mis_aprobadas), key=f"chk_{materia}")
                     if checked and materia not in nuevas_aprobadas: nuevas_aprobadas.append(materia)
                     elif not checked and materia in nuevas_aprobadas: nuevas_aprobadas.remove(materia)
-        
         with st.expander("🌍 Requisitos (Inglés / Informática)"):
             cols = st.columns(2)
             materias_extra = [m for m, d in PLAN_ESTUDIOS.items() if d['anio'] == 99]
@@ -262,19 +258,12 @@ def main():
                  checked = cols[i % 2].checkbox(materia, value=(materia in mis_aprobadas), key=f"chk_{materia}")
                  if checked and materia not in nuevas_aprobadas: nuevas_aprobadas.append(materia)
                  elif not checked and materia in nuevas_aprobadas: nuevas_aprobadas.remove(materia)
-
         if st.button("💾 Guardar Historial"):
-            # DETECTAR SI APROBÓ UNA MATERIA DIFÍCIL AHORA MISMO
             materias_recien_aprobadas = [m for m in nuevas_aprobadas if m not in mis_aprobadas]
-            
-            # Buscamos si alguna de las nuevas está en la lista de felicitaciones
             for materia in materias_recien_aprobadas:
                 if materia in MENSAJES_ALIENTO:
-                    # Guardamos el mensaje para mostrarlo después de recargar
                     st.session_state["mensaje_aliento_pendiente"] = MENSAJES_ALIENTO[materia]
-                    break # Solo mostramos uno por vez para no saturar
-
-            # Guardamos en BD
+                    break
             df = df[~((df["Nombre"] == usuario) & (df["Estado"] == "Aprobada"))]
             nuevos = [{"Nombre": usuario, "Materia": m, "Estado": "Aprobada"} for m in nuevas_aprobadas]
             df = pd.concat([df, pd.DataFrame(nuevos)], ignore_index=True)
@@ -288,14 +277,12 @@ def main():
             if materia in mis_cursando: continue
             faltan = [c for c in data['correlativas'] if c not in mis_aprobadas]
             if not faltan: disponibles.append(materia)
-        
         if disponibles:
             with st.form("form_inscripcion"):
                 def formato(m):
                     info = PLAN_ESTUDIOS[m]
                     dur = info['duracion']
                     return f"{m}  [{dur}]" if dur != "Requisito" else f"⭐ {m} [REQUISITO]"
-
                 seleccion = st.multiselect("Seleccioná:", disponibles, format_func=formato)
                 if st.form_submit_button("Confirmar Inscripción"):
                     nuevos = [{"Nombre": usuario, "Materia": m, "Estado": "Cursando"} for m in seleccion]
@@ -335,6 +322,21 @@ def main():
                     guardar_registro(conn, df)
         else: st.info("No te anotaste a nada.")
 
+    with tab5:
+        st.subheader("📚 Biblioteca de Apuntes (Drive)")
+        st.caption("Elegí una materia para ir a la carpeta compartida.")
+        
+        col1, col2 = st.columns(2)
+        # Filtramos solo las materias que tienen link en el diccionario BIBLIOTECA
+        opciones_con_link = list(BIBLIOTECA.keys())
+        
+        materia_elegida = col1.selectbox("Buscar materia:", opciones_con_link)
+        
+        if materia_elegida:
+            link = BIBLIOTECA[materia_elegida]
+            col2.link_button(f"📂 Abrir Carpeta de {materia_elegida}", link)
+        
+        st.info("💡 Consejo: Si tenés resúmenes, subilos a la carpeta para ayudar a los demás.")
+
 if __name__ == "__main__":
     main()
-
