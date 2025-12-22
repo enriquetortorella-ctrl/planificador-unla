@@ -82,12 +82,50 @@ PLAN_ESTUDIOS = {
     "Informática (Módulos)": {"anio": 99, "duracion": "Requisito", "correlativas": []}
 }
 
-# --- BIBLIOTECA DE LINKS (¡ACÁ TENÉS QUE PONER LOS LINKS DE DRIVE!) ---
+# --- BIBLIOTECA DE LINKS (GENERADA AUTOMÁTICAMENTE) ---
 BIBLIOTECA = {
-    "Elementos de Matemática": "https://drive.google.com/drive/u/0/", # Ejemplo
-    "Contabilidad": "https://drive.google.com/drive/u/0/", 
-    "Microeconomía": "https://drive.google.com/drive/u/0/",
-    # Agregá más materias acá...
+    "GENERAL_UNLA": "https://drive.google.com/drive/u/0/folders/1C7LQskupjeW2sO2wnD_upyYnuxip4oqs",
+    "Taller de Producción de Textos": "https://drive.google.com/drive/folders/1EhI-sOwxbQkkSMWbPT6yGCUQF6xCu7Mp",
+    "Introducción a la Matemática": "https://drive.google.com/drive/folders/11ZpKeteyJULu0OoUItyCIvBjNp9PiiSW",
+    "Contabilidad": "https://drive.google.com/drive/folders/17arr-tD35OF8hRANI9YhZ8P5BZSNvsCj",
+    "Historia Económica Contemporánea": "https://drive.google.com/drive/folders/1dMC-mINSkPHNSTIPFKy5QRIzh8eksJqE",
+    "Elementos de Matemática": "https://drive.google.com/drive/folders/1ljBGZrOWp86y39U8O1WSOx7RL41nYsnE",
+    "Organización y Gestión": "https://drive.google.com/drive/folders/1T6XHag5mHY6e0ics9EaO-GpdUn05WYTg",
+    "Economía y Sociedad": "https://drive.google.com/drive/folders/12Za-sst6bMwFLgOLNwUSc3FY0zpGtJ9p",
+    "Microeconomía": "https://drive.google.com/drive/folders/1poMkppjaPtvf2ykpWL1QmqGU38_ojxNa",
+    "Derecho Comercial": "https://drive.google.com/drive/folders/122j21UzCzQ8QjX_Dgcc9X5FJ4zMY-LR4",
+    "Cálculo Financiero y Est. Aplicado": "https://drive.google.com/drive/folders/185uCtIb_bTE-rUqNgw-8StfgpTPHX3ph",
+    "Costos Empresariales": "https://drive.google.com/drive/folders/1IInDSsAVrC7sbXWnwdbyYh4SsfyBNI17",
+    "Derecho Tributario": "https://drive.google.com/drive/folders/1cEONRX1FT7uY4iBrew82Zb1mCAUWeCQ0",
+    "Macroeconomía": "https://drive.google.com/drive/folders/1p4vcWSdUpGucf0OAnYyUzACeMxXickCg",
+    "Org. de la Producción y Tecnología": "https://drive.google.com/drive/folders/1zhp69SR3HUJQ64D_9rO64U6HtmtmhDb1",
+    "Derecho del Trabajo y Seg. Social": "https://drive.google.com/drive/folders/1cPRZ9D4dVbV3IN9lVrXK6H0gWgwO_aa4",
+    "Comercialización": "https://drive.google.com/drive/folders/1bJVACDFXqEu08w9vdZC64a6fWxdmYuDy",
+    "Control de Gestión": "https://drive.google.com/drive/folders/1dq-oqCiiCIeghp1Z6N7IG45o5SnGtWh5",
+    "Macroeconomía y Pol. Económica": "https://drive.google.com/drive/folders/1_u9cFsBzTZ8zBAPySWg9j7V0LCoFm7BX",
+    "Comercio Exterior y Ec. Int.": "https://drive.google.com/drive/folders/1Hldr_Ku-2hK6LgtW_8UXkDiBeLTd_WyP",
+    "Plan de Negocios": "https://drive.google.com/drive/folders/11CMDAhVFoFJWrVxY6gQBuelL_UfMwnKh",
+    "Financiamiento": "https://drive.google.com/drive/folders/1Kv4psPor6q4GNxiAzHQK0uAeZDeYEtfz",
+    "Taller de Integración I": "https://drive.google.com/drive/folders/1v93Y01tmj82JIgKQfH5L7xc9U3dJ3RwY",
+    "Formulación y Ev. de Proyectos": "https://drive.google.com/drive/folders/1Lhmb59meRqhCPyH804t4dcMQcFwGB7mi",
+    "Sistemas de Organización": "https://drive.google.com/drive/folders/1wIxV86jdg_cZvtUO-PkOz2fCWCAHbiDU",
+    "Economía Industrial": "https://drive.google.com/drive/folders/1uVcQF4MIJxXj-sFNxSq95bMpriDI4YxC",
+    "Economía Bancaria y Financiera": "https://drive.google.com/drive/folders/1IuTCxCkmp_q5Ad_C0iR7oTxHH3mmjqzM",
+    "Gestión Ambiental y Empresa": "https://drive.google.com/drive/folders/1pkQ8qS1wFvYN35xTlIVhh-exECwGlW1u",
+    "Admin. de Recursos Humanos": "https://drive.google.com/drive/folders/1GA7q0li75JoqNZeWSRu1d1AXpFh11Buq",
+    "Taller de Integración II": "https://drive.google.com/drive/folders/12yVr49-UE7YyYNLpd7IIQcHRuc536_Xx",
+    "Mediación y Negociación": "https://drive.google.com/drive/folders/1NtU2eb3k_UoGTtXnJco2wTPXL8gPWs-A",
+    "Problemas Actuales de la Econ. Arg.": "https://drive.google.com/drive/folders/1TqrMohDl2ZpvqSWKZ1ac7ZD1Wn1tpafT",
+    "Seminario: Resp. Social Empresaria": "https://drive.google.com/drive/folders/1jx9ixhZkNEO-09qlUcZJhaZgvwmLpDdX",
+    "Seminario: Economía Social": "https://drive.google.com/drive/folders/1hFE0dBjixaB2u3TdkgE02bw6iT3I_m4r",
+    "Práctica Pre-Profesional": "https://drive.google.com/drive/folders/1fuPVnpuekoowF_hCDJcCCspPSiehhjrb",
+    "Taller de Trabajo Final Integrador": "https://drive.google.com/drive/folders/1j7zadBn5vULDUh6HDIGJqR7JhYyKjWKv",
+    "Ética y Empresa": "https://drive.google.com/drive/folders/1aVoy2KM614cbtPCnYqnFS1W4-BeeZV5R",
+    "Planeamiento Estratégico": "https://drive.google.com/drive/folders/1KmmW8ogOdlND8uGEDeFFiW2S2no5Ff7r",
+    "Políticas y Estrategias Des. Reg.": "https://drive.google.com/drive/folders/1Oamrg6k63IWcEoDJCi8EQYtg5cwgDGqa",
+    "Nivel 1 - Inglés": "https://drive.google.com/drive/folders/1LYF4hQmvPErJwZCECTLzLCXa2GxQXyMC",
+    "Nivel 2 - Inglés": "https://drive.google.com/drive/folders/18w2UQG4rT8SitkT4pJwLN9QDOsYO1_U1",
+    "Informática (Módulos)": "https://drive.google.com/drive/folders/1A6kH91BrN3IY4Dt7vFIr8_5T7qM5vJrE",
 }
 
 MASCOTAS = {
@@ -326,17 +364,21 @@ def main():
         st.subheader("📚 Biblioteca de Apuntes (Drive)")
         st.caption("Elegí una materia para ir a la carpeta compartida.")
         
-        col1, col2 = st.columns(2)
-        # Filtramos solo las materias que tienen link en el diccionario BIBLIOTECA
-        opciones_con_link = list(BIBLIOTECA.keys())
+        # Botón General
+        st.link_button("📂 Ir a Carpeta General (UNLa)", BIBLIOTECA["GENERAL_UNLA"], type="primary")
+        st.divider()
         
-        materia_elegida = col1.selectbox("Buscar materia:", opciones_con_link)
+        # Filtro: Solo mostrar materias que NO sean la general
+        opciones_con_link = [m for m in BIBLIOTECA.keys() if m != "GENERAL_UNLA"]
+        
+        col1, col2 = st.columns([3, 1])
+        materia_elegida = col1.selectbox("Buscar materia específica:", opciones_con_link)
         
         if materia_elegida:
             link = BIBLIOTECA[materia_elegida]
-            col2.link_button(f"📂 Abrir Carpeta de {materia_elegida}", link)
+            col2.link_button(f"📂 Abrir Carpeta", link, type="primary")
         
-        st.info("💡 Consejo: Si tenés resúmenes, subilos a la carpeta para ayudar a los demás.")
+        st.info("💡 Consejo: Subí tus resúmenes para ayudar a los demás.")
 
 if __name__ == "__main__":
     main()
