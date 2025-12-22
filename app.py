@@ -2,10 +2,10 @@ import streamlit as st
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 
-# --- CONFIGURACIÓN ---
-st.set_page_config(page_title="UNLa 2025", page_icon="🦅", layout="wide")
+# --- 1. CONFIGURACIÓN DE PÁGINA (Icono Círculo Rojo) ---
+st.set_page_config(page_title="Círculo Rojo - UNLa", page_icon="🔴", layout="wide")
 
-# --- PLAN DE ESTUDIOS 2025 (Datos Oficiales) ---
+# --- PLAN DE ESTUDIOS 2025 ---
 PLAN_ESTUDIOS = {
     # 1ER AÑO
     "Taller de Producción de Textos": {"anio": 1, "duracion": "1°C", "correlativas": []},
@@ -81,18 +81,25 @@ def guardar_registro(conn, df_nuevo):
 
 # --- APP PRINCIPAL ---
 def main():
-    st.title("🦅 Planificador UNLa 2025")
+    st.title("🔴 Planificador Círculo Rojo")
     st.markdown("---")
     
     df, conn = obtener_datos()
     
-    # --- BARRA LATERAL (Usuario) ---
+    # --- BARRA LATERAL ---
     st.sidebar.header("👤 Identificación")
     usuario = st.sidebar.text_input("Tu Nombre:", placeholder="Ej: Enrique").strip().title()
 
+    # --- 2. SECCIÓN LINKS IMPORTANTES (Siempre visible) ---
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🔗 Links Importantes")
+    st.sidebar.link_button("🎓 SIU Guaraní", "https://estudiantes.unla.edu.ar/")
+    st.sidebar.link_button("🏫 Campus Virtual", "https://campus.unla.edu.ar/aulas/login/index.php")
+    st.sidebar.link_button("🏛️ Web UNLa", "https://www.unla.edu.ar/")
+
     # Si NO hay usuario, mostramos el resumen y cortamos la ejecución
     if not usuario:
-        st.info("👈 Por favor, escribí tu nombre en el menú de la izquierda para comenzar.")
+        st.info("👈 Escribí tu nombre a la izquierda para comenzar.")
         
         if not df.empty:
             st.subheader("📊 Estado del Grupo")
@@ -108,7 +115,7 @@ def main():
                     hide_index=True,
                     use_container_width=True
                 )
-        return  # <--- Frena acá si no hay nombre
+        return
 
     # --- CARGAR DATOS DEL USUARIO ---
     mis_datos = df[df["Nombre"] == usuario]
@@ -129,7 +136,8 @@ def main():
         st.sidebar.success("¡FELICITACIONES! 🎓🎉")
 
     # --- PESTAÑAS ---
-    tab1, tab2, tab3, tab4 = st.tabs(["✅ Historial", "📅 Inscripción", "👥 Grupo", "🎒 Mis Materias"])
+    # Cambié el nombre de la Tab 3 a "Estado del Grupo"
+    tab1, tab2, tab3, tab4 = st.tabs(["✅ Historial", "📅 Inscripción", "📊 Estado del Grupo", "🎒 Mis Materias"])
 
     # 1. HISTORIAL (APROBADAS)
     with tab1:
@@ -191,20 +199,39 @@ def main():
         else:
             st.success("¡Estás al día! No tenés materias pendientes habilitadas.")
 
-    # 3. VER GRUPO
+    # 3. ESTADO DEL GRUPO (Ahora incluye la tabla completa)
     with tab3:
-        st.subheader("Buscador de Compañeros")
+        st.subheader("📊 Estado General del Grupo")
+        
+        # MOSTRAR TABLA GENERAL PRIMERO
+        if not df.empty:
+            cursada_general = df[df["Estado"] == "Cursando"]
+            if not cursada_general.empty:
+                resumen = cursada_general.groupby("Materia")["Nombre"].unique().reset_index()
+                resumen["Estudiantes"] = resumen["Nombre"].apply(lambda x: ", ".join(x))
+                resumen["Inscriptos"] = resumen["Nombre"].apply(len)
+                
+                st.dataframe(
+                    resumen[["Materia", "Inscriptos", "Estudiantes"]].sort_values(by="Inscriptos", ascending=False),
+                    hide_index=True,
+                    use_container_width=True
+                )
+            else:
+                st.info("Aún no hay inscripciones en el grupo.")
+        
+        st.divider()
+        st.write("🔍 **Buscar materia específica:**")
         materia_busqueda = st.selectbox("Elegí una materia:", list(PLAN_ESTUDIOS.keys()))
         
         alumnos = df[(df["Materia"] == materia_busqueda) & (df["Estado"] == "Cursando")]["Nombre"].unique()
         
         if len(alumnos) > 0:
-            st.success(f"Estudiantes inscriptos ({len(alumnos)}):")
+            st.success(f"Estudiantes inscriptos en {materia_busqueda} ({len(alumnos)}):")
             st.markdown(f"### 🧑‍🎓 {', '.join(alumnos)}")
         else:
             st.warning("Nadie se anotó en esta materia todavía.")
 
-    # 4. MIS INSCRIPCIONES (Resumen)
+    # 4. MIS INSCRIPCIONES
     with tab4:
         st.subheader(f"Inscripciones de {usuario}")
         
