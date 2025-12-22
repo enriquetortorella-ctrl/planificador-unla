@@ -90,6 +90,19 @@ def main():
     # --- BARRA LATERAL (Usuario) ---
     st.sidebar.header("👤 Identificación")
     usuario = st.sidebar.text_input("Tu Nombre:", placeholder="Ej: Enrique").strip().title()
+    # ... (código del sidebar donde pone el nombre) ...
+
+    # CÁLCULO DE PROGRESO
+    if usuario and not df.empty:
+        total_materias = len(PLAN_ESTUDIOS)
+        aprobadas_count = len(mis_aprobadas)
+        progreso = aprobadas_count / total_materias
+        
+        st.sidebar.write(f"🎓 **Progreso de Carrera:** {int(progreso * 100)}%")
+        st.sidebar.progress(progreso)
+        
+        if progreso == 1.0:
+            st.sidebar.success("¡FELICITACIONES! 🎓🎉")
 
     # Si no hay usuario, mostrar resumen general
     if not usuario:
@@ -226,3 +239,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
