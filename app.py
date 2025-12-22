@@ -96,7 +96,7 @@ def guardar_registro(conn, df_nuevo):
     except Exception as e:
         st.error(f"Error al guardar: {e}")
 
-# --- FUNCIÓN DE FESTEJO DE TÍTULOS ---
+# --- FUNCIÓN DE FESTEJO DE TÍTULOS (CORREGIDA: COLOR DE LETRA) ---
 def verificar_titulos(mis_aprobadas, usuario):
     # 1. TÍTULO INTERMEDIO (Todo 1°, 2° y 3° año aprobado)
     materias_intermedio = [m for m, d in PLAN_ESTUDIOS.items() if d['anio'] in [1, 2, 3]]
@@ -108,24 +108,26 @@ def verificar_titulos(mis_aprobadas, usuario):
 
     # Logica de visualización
     if tiene_final:
-        st.snow() # Lluvia de nieve/papelitos
+        st.snow()
+        # Forzamos color oscuro (#155724) en todos los textos para que se vea bien
         st.markdown(f"""
         <div style="background-color:#d4edda;padding:20px;border-radius:10px;text-align:center;border:2px solid #28a745">
             <h1 style="color:#155724;margin:0;">🎓 ¡FELICITACIONES {usuario.upper()}! 🎓</h1>
             <h3 style="color:#155724;">Ya sos LICENCIADO/A EN ECONOMÍA EMPRESARIAL</h3>
-            <p>¡Completaste todo el plan de estudios! 🍾</p>
+            <p style="color:#155724;">¡Completaste todo el plan de estudios! 🍾</p>
         </div>
         <br>
         """, unsafe_allow_html=True)
         return "Licenciado/a"
     
     elif tiene_intermedio:
-        st.balloons() # Globos
+        st.balloons()
+        # Forzamos color oscuro (#856404) en todos los textos
         st.markdown(f"""
         <div style="background-color:#fff3cd;padding:20px;border-radius:10px;text-align:center;border:2px solid #ffc107">
             <h1 style="color:#856404;margin:0;">✨ ¡FELICITACIONES {usuario.upper()}! ✨</h1>
             <h3 style="color:#856404;">Obtuviste el Título Intermedio: ANALISTA ECONÓMICO EMPRESARIAL</h3>
-            <p>¡Completaste los primeros 3 años de la carrera! 🚀</p>
+            <p style="color:#856404;">¡Completaste los primeros 3 años de la carrera! 🚀</p>
         </div>
         <br>
         """, unsafe_allow_html=True)
@@ -201,7 +203,7 @@ def main():
     st.sidebar.write(f"🎓 **Progreso:** {int(progreso * 100)}%")
     st.sidebar.progress(progreso)
     
-    # Medalla en Sidebar si tiene título
+    # Medalla en Sidebar
     if titulo_obtenido:
         st.sidebar.success(f"🏆 **Título:** {titulo_obtenido}")
 
