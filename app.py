@@ -10,8 +10,8 @@ st.set_page_config(page_title="Círculo Rojo - UNLa", page_icon="🔴", layout="
 # --- CONTROL DE ESTADO (SESSION STATE) ---
 if "celebro_analista" not in st.session_state: st.session_state["celebro_analista"] = False
 if "celebro_licenciado" not in st.session_state: st.session_state["celebro_licenciado"] = False
-# Variable para guardar batallas pendientes entre recargas
-if "batalla_pendiente" not in st.session_state: st.session_state["batalla_pendiente"] = []
+# Variable para mostrar mensaje de aliento tras recargar
+if "mensaje_aliento_pendiente" not in st.session_state: st.session_state["mensaje_aliento_pendiente"] = None
 
 # --- BASE DE DATOS DE FECHAS ---
 CALENDARIO = [
@@ -93,23 +93,14 @@ MASCOTAS = {
     "Lobo 🐺": ["🦴", "🐕", "🐺", "🌕", "👑🐺👑"]
 }
 
-# --- CONFIGURACIÓN DE JEFES (BOSS BATTLES) ---
-JEFE_CONFIG = {
-    "Elementos de Matemática": {
-        "boss_name": "El Umpa Lumpa",
-        "boss_emoji": "🧙‍♂️🍭",
-        "frase_victoria": "¡Tu lagarto se comió las integrales! ¡Adiós Umpa Lumpa!"
-    },
-    "Organización y Gestión": {
-        "boss_name": "Las Brujas Mellizas",
-        "boss_emoji": "🧙‍♀️🧙‍♀️",
-        "frase_victoria": "¡Poción anti-brujas exitosa! Gestión aprobada."
-    },
-    "Costos Empresariales": {
-        "boss_name": "BRAGA, EL TERRIBLE",
-        "boss_emoji": "👺🔥",
-        "frase_victoria": "¡HAZAÑA LEGENDARIA! ¡Derrotaste al jefe final Braga! ¡Sos imparable!"
-    }
+# --- MENSAJES DE ALIENTO (MATERIAS DIFÍCILES) ---
+# Aquí configuramos qué materias disparan felicitaciones especiales
+MENSAJES_ALIENTO = {
+    "Elementos de Matemática": "¡Qué genio! Aprobaste Elementos, una de las más difíciles. 🚀",
+    "Organización y Gestión": "¡Excelente! Superaste Gestión. ¡Un paso gigante! 👏",
+    "Costos Empresariales": "¡Increíble! Aprobaste Costos. ¡Estás a otro nivel! 🔥",
+    "Microeconomía": "¡Economista en potencia! Muy buena esa aprobada. 📈",
+    "Cálculo Financiero y Est. Aplicado": "¡Cálculo adentro! Venís imparable. 💰"
 }
 
 # --- CONEXIÓN GOOGLE SHEETS ---
@@ -133,30 +124,13 @@ def guardar_registro(conn, df_nuevo):
     except Exception as e:
         st.error(f"Error al guardar: {e}")
 
-# --- FUNCIÓN: MOSTRAR BATALLA (Solo si hay pendiente) ---
-def mostrar_batalla_pendiente(avatar_actual):
-    if st.session_state["batalla_pendiente"]:
-        # Recorremos los jefes que acabamos de vencer
-        for materia in st.session_state["batalla_pendiente"]:
-            if materia in JEFE_CONFIG:
-                data = JEFE_CONFIG[materia]
-                st.toast(f"⚔️ ¡JEFE DERROTADO: {data['boss_name']}!", icon="💥")
-                st.balloons()
-                st.markdown(f"""
-                <div style="background-color:#ffcccb;padding:15px;border-radius:10px;text-align:center;border:3px solid #d9534f; margin-bottom: 20px;">
-                    <h2 style="color:#c9302c;margin:0;">💥 ¡BATALLA ÉPICA GANADA! 💥</h2>
-                    <div style="font-size: 50px; margin: 10px 0;">
-                         {avatar_actual} ⚔️ VS ⚔️ {data['boss_emoji']}
-                    </div>
-                    <h3 style="color:#a94442;">Derrotaste a: <strong>{data['boss_name']}</strong></h3>
-                    <p style="font-size: 18px; font-style: italic; color:#333;">"{data['frase_victoria']}"</p>
-                    <p style="font-size: 14px; color: gray;">(Materia: {materia})</p>
-                </div>
-                """, unsafe_allow_html=True)
-        
-        # IMPORTANTE: Limpiamos la lista para que NO aparezca de nuevo al recargar
-        st.session_state["batalla_pendiente"] = []
-
+# --- MOSTRAR ALIENTO PENDIENTE ---
+def mostrar_mensaje_aliento():
+    if st.session_state["mensaje_aliento_pendiente"]:
+        mensaje = st.session_state["mensaje_aliento_pendiente"]
+        st.toast(mensaje, icon="🎉")
+        st.balloons()
+        st.session_state["mensaje_aliento_pendiente"] = None # Limpiar para que no salga de nuevo
 
 # --- VERIFICAR TÍTULOS ---
 def verificar_titulos(mis_aprobadas, usuario):
@@ -259,8 +233,8 @@ def main():
     st.sidebar.write(f"🎓 **Progreso:** {int(progreso * 100)}%")
     st.sidebar.progress(progreso)
 
-    # --- MOSTRAR BATALLA (SI HUBO UNA RECIENTE) ---
-    mostrar_batalla_pendiente(avatar_actual)
+    # --- MOSTRAR MENSAJE ALIENTO (SI CORRESPONDE) ---
+    mostrar_mensaje_aliento()
 
     # --- VERIFICAR TÍTULOS ---
     titulo_obtenido = verificar_titulos(mis_aprobadas, usuario)
@@ -290,13 +264,15 @@ def main():
                  elif not checked and materia in nuevas_aprobadas: nuevas_aprobadas.remove(materia)
 
         if st.button("💾 Guardar Historial"):
-            # DETECTAR SI VENCIÓ A UN JEFE AHORA MISMO
-            # Buscamos si hay un jefe en las "nuevas" que NO estaba en las "viejas"
-            bosses_recien_vencidos = [m for m in nuevas_aprobadas if m in JEFE_CONFIG and m not in mis_aprobadas]
+            # DETECTAR SI APROBÓ UNA MATERIA DIFÍCIL AHORA MISMO
+            materias_recien_aprobadas = [m for m in nuevas_aprobadas if m not in mis_aprobadas]
             
-            # Si venció a alguien, lo guardamos en la memoria temporal para mostrarlo tras recargar
-            if bosses_recien_vencidos:
-                st.session_state["batalla_pendiente"] = bosses_recien_vencidos
+            # Buscamos si alguna de las nuevas está en la lista de felicitaciones
+            for materia in materias_recien_aprobadas:
+                if materia in MENSAJES_ALIENTO:
+                    # Guardamos el mensaje para mostrarlo después de recargar
+                    st.session_state["mensaje_aliento_pendiente"] = MENSAJES_ALIENTO[materia]
+                    break # Solo mostramos uno por vez para no saturar
 
             # Guardamos en BD
             df = df[~((df["Nombre"] == usuario) & (df["Estado"] == "Aprobada"))]
