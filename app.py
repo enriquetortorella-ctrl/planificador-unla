@@ -7,14 +7,13 @@ import time
 # --- 1. CONFIGURACIÓN DE PÁGINA ---
 st.set_page_config(page_title="Círculo Rojo - UNLa", page_icon="🔴", layout="wide")
 
-# --- CONTROL DE FESTEJOS (SESSION STATE) ---
-# Esto evita que los globos salgan cada vez que haces clic
-if "celebro_analista" not in st.session_state:
-    st.session_state["celebro_analista"] = False
-if "celebro_licenciado" not in st.session_state:
-    st.session_state["celebro_licenciado"] = False
+# --- CONTROL DE ESTADO (SESSION STATE) ---
+if "celebro_analista" not in st.session_state: st.session_state["celebro_analista"] = False
+if "celebro_licenciado" not in st.session_state: st.session_state["celebro_licenciado"] = False
+# Control para que la batalla contra jefes salga una sola vez por sesión
+if "jefes_derrotados" not in st.session_state: st.session_state["jefes_derrotados"] = []
 
-# --- BASE DE DATOS DE FECHAS (Calendario Oficial 2025 + 2026) ---
+# --- BASE DE DATOS DE FECHAS ---
 CALENDARIO = [
     {"fecha": "2025-02-24", "evento": "Inscripción Cursada 1° Cuatrimestre 2025"},
     {"fecha": "2025-04-22", "evento": "Inscripción Finales (Turno Mayo)"},
@@ -78,10 +77,39 @@ PLAN_ESTUDIOS = {
     "Planeamiento Estratégico": {"anio": 5, "duracion": "2°C", "correlativas": ["Políticas y Estrategias Des. Reg."]},
     "Políticas y Estrategias Des. Reg.": {"anio": 5, "duracion": "2°C", "correlativas": ["Taller de Integración II"]},
     
-    # EXTRAS (REQUISITOS)
+    # EXTRAS
     "Nivel 1 - Inglés": {"anio": 99, "duracion": "Requisito", "correlativas": []},
     "Nivel 2 - Inglés": {"anio": 99, "duracion": "Requisito", "correlativas": ["Nivel 1 - Inglés"]},
     "Informática (Módulos)": {"anio": 99, "duracion": "Requisito", "correlativas": []}
+}
+
+# --- SISTEMA DE MASCOTAS (Con Lagarto Agregado) ---
+MASCOTAS = {
+    "Lagarto 🦎": ["🥚", "🦎", "🐊", "🦖", "👑🦖👑"],
+    "Dragón 🐉": ["🥚", "🦎", "🐲", "🐉", "🔥🐲🔥"],
+    "Robot 🤖": ["🔩", "🔋", "🦾", "🤖", "🚀🤖🚀"],
+    "Planta 🌱": ["🌱", "🌿", "🌳", "🍎", "✨🌳✨"],
+    "Mago 🧙": ["📚", "🔮", "🎩", "🧙", "⚡🧙⚡"],
+    "Lobo 🐺": ["🦴", "🐕", "🐺", "🌕", "👑🐺👑"]
+}
+
+# --- CONFIGURACIÓN DE JEFES (BOSS BATTLES) ---
+JEFE_CONFIG = {
+    "Elementos de Matemática": {
+        "boss_name": "El Umpa Lumpa",
+        "boss_emoji": "🧙‍♂️🍭",
+        "frase_victoria": "¡Tu lagarto se comió las integrales! ¡Adiós Umpa Lumpa!"
+    },
+    "Organización y Gestión": {
+        "boss_name": "Las Brujas Mellizas",
+        "boss_emoji": "🧙‍♀️🧙‍♀️",
+        "frase_victoria": "¡Poción anti-brujas exitosa! Gestión aprobada."
+    },
+    "Costos Empresariales": {
+        "boss_name": "BRAGA, EL TERRIBLE",
+        "boss_emoji": "👺🔥",
+        "frase_victoria": "¡HAZAÑA LEGENDARIA! ¡Derrotaste al jefe final Braga! ¡Sos imparable!"
+    }
 }
 
 # --- CONEXIÓN GOOGLE SHEETS ---
@@ -91,15 +119,12 @@ def obtener_datos():
         df = conn.read(worksheet=0, ttl=0)
         return df, conn
     except Exception as e:
-        # No mostramos error acá para no asustar, devolvemos None y manejamos luego
         return pd.DataFrame(columns=["Nombre", "Materia", "Estado"]), None
 
 def guardar_registro(conn, df_nuevo):
-    # Protección contra el error "NoneType"
     if conn is None:
-        st.error("⚠️ Conexión inestable: No se pudo guardar. Por favor, recargá la página (F5) e intentá de nuevo.")
+        st.error("⚠️ Conexión inestable: Recargá la página (F5).")
         return
-
     try:
         conn.update(worksheet=0, data=df_nuevo)
         st.cache_data.clear()
@@ -108,71 +133,71 @@ def guardar_registro(conn, df_nuevo):
     except Exception as e:
         st.error(f"Error al guardar: {e}")
 
-# --- FUNCIÓN DE FESTEJO DE TÍTULOS (CORREGIDA) ---
+# --- FUNCIÓN: VERIFICAR BATALLAS CONTRA JEFES ---
+def verificar_jefes(aprobadas, avatar_actual):
+    for materia, data in JEFE_CONFIG.items():
+        # Si la materia está aprobada Y NO fue festejada en esta sesión
+        if materia in aprobadas and materia not in st.session_state["jefes_derrotados"]:
+            st.toast(f"⚔️ ¡JEFE DERROTADO: {data['boss_name']}!", icon="💥")
+            st.balloons()
+            # Cartel de Batalla Épica
+            st.markdown(f"""
+            <div style="background-color:#ffcccb;padding:15px;border-radius:10px;text-align:center;border:3px solid #d9534f; margin-bottom: 20px;">
+                <h2 style="color:#c9302c;margin:0;">💥 ¡BATALLA ÉPICA GANADA! 💥</h2>
+                <div style="font-size: 50px; margin: 10px 0;">
+                     {avatar_actual} ⚔️ VS ⚔️ {data['boss_emoji']}
+                </div>
+                <h3 style="color:#a94442;">Derrotaste a: <strong>{data['boss_name']}</strong></h3>
+                <p style="font-size: 18px; font-style: italic; color:#333;">"{data['frase_victoria']}"</p>
+                <p style="font-size: 14px; color: gray;">(Materia: {materia})</p>
+            </div>
+            """, unsafe_allow_html=True)
+            # Marcar como derrotado en esta sesión
+            st.session_state["jefes_derrotados"].append(materia)
+
+
+# --- VERIFICAR TÍTULOS ---
 def verificar_titulos(mis_aprobadas, usuario):
-    # 1. TÍTULO INTERMEDIO (Todo 1°, 2° y 3° año aprobado)
     materias_intermedio = [m for m, d in PLAN_ESTUDIOS.items() if d['anio'] in [1, 2, 3]]
     tiene_intermedio = set(materias_intermedio).issubset(set(mis_aprobadas))
-    
-    # 2. TÍTULO FINAL (Todo el plan aprobado)
     materias_final = list(PLAN_ESTUDIOS.keys())
     tiene_final = set(materias_final).issubset(set(mis_aprobadas))
-
     resultado = None
 
-    # Lógica Licenciado
     if tiene_final:
         resultado = "Licenciado/a"
-        # Mostrar cartel SIEMPRE
         st.markdown(f"""
         <div style="background-color:#d4edda;padding:20px;border-radius:10px;text-align:center;border:2px solid #28a745">
             <h1 style="color:#155724;margin:0;">🎓 ¡FELICITACIONES {usuario.upper()}! 🎓</h1>
             <h3 style="color:#155724;">Ya sos LICENCIADO/A EN ECONOMÍA EMPRESARIAL</h3>
             <p style="color:#155724;">¡Completaste todo el plan de estudios! 🍾</p>
-        </div>
-        <br>
-        """, unsafe_allow_html=True)
-        
-        # Festejar SOLO si no festejó antes en esta sesión
+        </div><br>""", unsafe_allow_html=True)
         if not st.session_state["celebro_licenciado"]:
-            st.snow()
-            st.session_state["celebro_licenciado"] = True
-    
-    # Lógica Analista (Solo si no es Licenciado aun)
+            st.snow(); st.session_state["celebro_licenciado"] = True
     elif tiene_intermedio:
         resultado = "Analista"
-        # Mostrar cartel SIEMPRE
         st.markdown(f"""
         <div style="background-color:#fff3cd;padding:20px;border-radius:10px;text-align:center;border:2px solid #ffc107">
             <h1 style="color:#856404;margin:0;">✨ ¡FELICITACIONES {usuario.upper()}! ✨</h1>
-            <h3 style="color:#856404;">Obtuviste el Título Intermedio: ANALISTA ECONÓMICO EMPRESARIAL</h3>
-            <p style="color:#856404;">¡Completaste los primeros 3 años de la carrera! 🚀</p>
-        </div>
-        <br>
-        """, unsafe_allow_html=True)
-        
-        # Festejar SOLO si no festejó antes en esta sesión
+            <h3 style="color:#856404;">Título Intermedio: ANALISTA</h3>
+            <p style="color:#856404;">¡Completaste 3 años! 🚀</p>
+        </div><br>""", unsafe_allow_html=True)
         if not st.session_state["celebro_analista"]:
-            st.balloons()
-            st.session_state["celebro_analista"] = True
-    
+            st.balloons(); st.session_state["celebro_analista"] = True
     return resultado
 
 # --- APP PRINCIPAL ---
 def main():
     st.title("🔴 Planificador Círculo Rojo")
     
-    # --- ALERTAS DE FECHAS ---
+    # ALERTAS DE FECHAS
     hoy = datetime.now().date()
     dias_aviso = 10
-    
     for evento in CALENDARIO:
         fecha_evento = datetime.strptime(evento["fecha"], "%Y-%m-%d").date()
         dias_restantes = (fecha_evento - hoy).days
-        if dias_restantes == 0:
-            st.success(f"🚨 **¡HOY!** {evento['evento']}")
-        elif 0 < dias_restantes <= dias_aviso:
-            st.warning(f"⚠️ **Pronto:** {evento['evento']} (en {dias_restantes} días)")
+        if dias_restantes == 0: st.success(f"🚨 **¡HOY!** {evento['evento']}")
+        elif 0 < dias_restantes <= dias_aviso: st.warning(f"⚠️ **Pronto:** {evento['evento']} (en {dias_restantes} días)")
 
     st.markdown("---")
     df, conn = obtener_datos()
@@ -180,14 +205,10 @@ def main():
     # --- SIDEBAR ---
     st.sidebar.header("👤 Identificación")
     usuario = st.sidebar.text_input("Tu Nombre:", placeholder="Ej: Enrique").strip().title()
-
-    # LINKS
     st.sidebar.markdown("---")
     st.sidebar.subheader("🔗 Accesos Rápidos")
     st.sidebar.link_button("🎓 SIU Guaraní", "https://estudiantes.unla.edu.ar/")
     st.sidebar.link_button("🏫 Campus Virtual", "https://campus.unla.edu.ar/aulas/login/index.php")
-    
-    # FECHAS
     st.sidebar.markdown("---")
     st.sidebar.subheader("📅 Próximas Fechas")
     eventos_futuros = [e for e in CALENDARIO if datetime.strptime(e["fecha"], "%Y-%m-%d").date() >= hoy]
@@ -195,12 +216,10 @@ def main():
         for e in eventos_futuros[:3]:
             f_str = datetime.strptime(e["fecha"], "%Y-%m-%d").strftime("%d/%m")
             st.sidebar.write(f"• **{f_str}**: {e['evento']}")
-    else:
-        st.sidebar.caption("Sin fechas próximas.")
+    else: st.sidebar.caption("Sin fechas próximas.")
 
     if not usuario:
         st.info("👈 Escribí tu nombre a la izquierda para comenzar.")
-        # Resumen sin login
         if not df.empty:
             st.subheader("📊 Estado del Grupo")
             cursada = df[df["Estado"] == "Cursando"]
@@ -216,19 +235,35 @@ def main():
     mis_aprobadas = mis_datos[mis_datos["Estado"] == "Aprobada"]["Materia"].tolist()
     mis_cursando = mis_datos[mis_datos["Estado"] == "Cursando"]["Materia"].tolist()
 
-    # --- VERIFICAR TÍTULOS Y FESTEJO ---
-    titulo_obtenido = verificar_titulos(mis_aprobadas, usuario)
-
-    # --- PROGRESO ---
+    # --- GAMIFICACIÓN: MASCOTA Y PROGRESO ---
     total = len(PLAN_ESTUDIOS)
     progreso = len(mis_aprobadas) / total if total > 0 else 0
+    
     st.sidebar.markdown("---")
+    st.sidebar.subheader("👾 Tu Compañero")
+    # Lagarto por defecto
+    idx_defecto = list(MASCOTAS.keys()).index("Lagarto 🦎")
+    tipo_mascota = st.sidebar.selectbox("Elegí tu avatar:", list(MASCOTAS.keys()), index=idx_defecto)
+    
+    fases = MASCOTAS[tipo_mascota]
+    indice_fase = 0
+    if progreso >= 1.0: indice_fase = 4
+    elif progreso >= 0.75: indice_fase = 3
+    elif progreso >= 0.50: indice_fase = 2
+    elif progreso >= 0.25: indice_fase = 1
+    
+    avatar_actual = fases[indice_fase]
+    st.sidebar.markdown(f"<h1 style='text-align: center; font-size: 60px;'>{avatar_actual}</h1>", unsafe_allow_html=True)
+    st.sidebar.caption(f"Nivel {indice_fase + 1}/5")
     st.sidebar.write(f"🎓 **Progreso:** {int(progreso * 100)}%")
     st.sidebar.progress(progreso)
-    
-    # Medalla en Sidebar
-    if titulo_obtenido:
-        st.sidebar.success(f"🏆 **Título:** {titulo_obtenido}")
+
+    # --- VERIFICACIONES (JEFES Y TÍTULOS) ---
+    # Primero verificamos batallas contra jefes
+    verificar_jefes(mis_aprobadas, avatar_actual)
+    # Luego verificamos títulos
+    titulo_obtenido = verificar_titulos(mis_aprobadas, usuario)
+    if titulo_obtenido: st.sidebar.success(f"🏆 **Título:** {titulo_obtenido}")
 
     # --- PESTAÑAS ---
     tab1, tab2, tab3, tab4 = st.tabs(["✅ Historial", "📅 Inscripción", "📊 Estado del Grupo", "🎒 Mis Materias"])
@@ -236,7 +271,6 @@ def main():
     with tab1:
         st.subheader("Marcá tus materias aprobadas")
         nuevas_aprobadas = mis_aprobadas.copy()
-        
         for anio in range(1, 6):
             with st.expander(f"Materias de {anio}° Año"):
                 cols = st.columns(2)
@@ -281,8 +315,7 @@ def main():
                     nuevos = [{"Nombre": usuario, "Materia": m, "Estado": "Cursando"} for m in seleccion]
                     df = pd.concat([df, pd.DataFrame(nuevos)], ignore_index=True)
                     guardar_registro(conn, df)
-        else:
-            st.success("¡Estás al día!")
+        else: st.success("¡Estás al día!")
 
     with tab3:
         st.subheader("📊 Estado General del Grupo")
@@ -293,15 +326,12 @@ def main():
                 res["Estudiantes"] = res["Nombre"].apply(lambda x: ", ".join(x))
                 res["Inscriptos"] = res["Nombre"].apply(len)
                 st.dataframe(res[["Materia", "Inscriptos", "Estudiantes"]].sort_values(by="Inscriptos", ascending=False), hide_index=True, use_container_width=True)
-        
         st.divider()
         st.write("🔍 **Buscar materia:**")
         mat_busq = st.selectbox("Elegí materia:", list(PLAN_ESTUDIOS.keys()))
         alum = df[(df["Materia"] == mat_busq) & (df["Estado"] == "Cursando")]["Nombre"].unique()
-        if len(alum) > 0:
-            st.success(f"En {mat_busq}: {', '.join(alum)}")
-        else:
-            st.warning("Nadie anotado.")
+        if len(alum) > 0: st.success(f"En {mat_busq}: {', '.join(alum)}")
+        else: st.warning("Nadie anotado.")
 
     with tab4:
         st.subheader(f"Inscripciones de {usuario}")
@@ -311,15 +341,13 @@ def main():
                 info = PLAN_ESTUDIOS.get(m, {})
                 datos.append({"Materia": m, "Año": f"{info.get('anio', '-')}", "Duración": info.get("duracion", "-")})
             st.dataframe(pd.DataFrame(datos), use_container_width=True, hide_index=True)
-            
             st.divider()
             borrar = st.multiselect("Dar de baja:", mis_cursando)
             if st.button("Eliminar Seleccionadas"):
                 if borrar:
                     df = df[~((df["Nombre"] == usuario) & (df["Materia"].isin(borrar)) & (df["Estado"] == "Cursando"))]
                     guardar_registro(conn, df)
-        else:
-            st.info("No te anotaste a nada.")
+        else: st.info("No te anotaste a nada.")
 
 if __name__ == "__main__":
     main()
