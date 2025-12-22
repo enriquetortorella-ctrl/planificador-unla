@@ -5,8 +5,7 @@ from streamlit_gsheets import GSheetsConnection
 # --- CONFIGURACIÓN ---
 st.set_page_config(page_title="UNLa 2025", page_icon="🦅", layout="wide")
 
-# --- PLAN DE ESTUDIOS 2025 (Datos Oficiales del PDF) ---
-# Si en el futuro cambia algo, solo editás esta lista.
+# --- PLAN DE ESTUDIOS 2025 (Datos Oficiales) ---
 PLAN_ESTUDIOS = {
     # 1ER AÑO
     "Taller de Producción de Textos": {"anio": 1, "duracion": "1°C", "correlativas": []},
@@ -90,21 +89,8 @@ def main():
     # --- BARRA LATERAL (Usuario) ---
     st.sidebar.header("👤 Identificación")
     usuario = st.sidebar.text_input("Tu Nombre:", placeholder="Ej: Enrique").strip().title()
-    # ... (código del sidebar donde pone el nombre) ...
 
-    # CÁLCULO DE PROGRESO
-    if usuario and not df.empty:
-        total_materias = len(PLAN_ESTUDIOS)
-        aprobadas_count = len(mis_aprobadas)
-        progreso = aprobadas_count / total_materias
-        
-        st.sidebar.write(f"🎓 **Progreso de Carrera:** {int(progreso * 100)}%")
-        st.sidebar.progress(progreso)
-        
-        if progreso == 1.0:
-            st.sidebar.success("¡FELICITACIONES! 🎓🎉")
-
-    # Si no hay usuario, mostrar resumen general
+    # Si NO hay usuario, mostramos el resumen y cortamos la ejecución
     if not usuario:
         st.info("👈 Por favor, escribí tu nombre en el menú de la izquierda para comenzar.")
         
@@ -112,131 +98,10 @@ def main():
             st.subheader("📊 Estado del Grupo")
             cursada = df[df["Estado"] == "Cursando"]
             if not cursada.empty:
-                # Agrupar por materia
                 resumen = cursada.groupby("Materia")["Nombre"].unique().reset_index()
                 resumen["Estudiantes"] = resumen["Nombre"].apply(lambda x: ", ".join(x))
                 resumen["Inscriptos"] = resumen["Nombre"].apply(len)
-                # Mostrar tabla ordenada
                 st.dataframe(
                     resumen[["Materia", "Inscriptos", "Estudiantes"]].sort_values(by="Inscriptos", ascending=False),
                     hide_index=True,
                     use_container_width=True
-                )
-        return
-
-    # --- FILTRAR DATOS DEL USUARIO ---
-    mis_datos = df[df["Nombre"] == usuario]
-    mis_aprobadas = mis_datos[mis_datos["Estado"] == "Aprobada"]["Materia"].tolist()
-    mis_cursando = mis_datos[mis_datos["Estado"] == "Cursando"]["Materia"].tolist()
-
-    # --- PESTAÑAS ---
-    tab1, tab2, tab3, tab4 = st.tabs(["✅ Historial", "📅 Inscripción", "👥 Grupo", "🎒 Mis Materias"])
-
-    # 1. HISTORIAL (APROBADAS)
-    with tab1:
-        st.subheader("Marcá tus materias aprobadas")
-        st.caption("Esto es necesario para que el sistema sepa qué correlativas tenés.")
-        
-        nuevas_aprobadas = mis_aprobadas.copy()
-        
-        # Mostrar materias por año para que sea más ordenado
-        for anio in range(1, 6):
-            with st.expander(f"Materias de {anio}° Año"):
-                cols = st.columns(2)
-                materias_anio = [m for m, d in PLAN_ESTUDIOS.items() if d['anio'] == anio]
-                
-                for i, materia in enumerate(materias_anio):
-                    checked = cols[i % 2].checkbox(materia, value=(materia in mis_aprobadas), key=f"chk_{materia}")
-                    if checked and materia not in nuevas_aprobadas:
-                        nuevas_aprobadas.append(materia)
-                    elif not checked and materia in nuevas_aprobadas:
-                        nuevas_aprobadas.remove(materia)
-        
-        if st.button("💾 Guardar Historial"):
-            # Borrar historial viejo y guardar el nuevo
-            df = df[~((df["Nombre"] == usuario) & (df["Estado"] == "Aprobada"))]
-            nuevos_registros = [{"Nombre": usuario, "Materia": m, "Estado": "Aprobada"} for m in nuevas_aprobadas]
-            df = pd.concat([df, pd.DataFrame(nuevos_registros)], ignore_index=True)
-            guardar_registro(conn, df)
-
-    # 2. INSCRIPCIÓN (CURSADA)
-    with tab2:
-        st.subheader("Inscripción 2025")
-        
-        # Lógica de Correlativas
-        disponibles = []
-        bloqueadas = []
-        
-        for materia, data in PLAN_ESTUDIOS.items():
-            if materia in mis_aprobadas: continue
-            if materia in mis_cursando: continue
-            
-            # Chequear correlativas
-            faltan = [c for c in data['correlativas'] if c not in mis_aprobadas]
-            
-            if not faltan:
-                disponibles.append(materia)
-            else:
-                bloqueadas.append((materia, faltan))
-        
-        if disponibles:
-            with st.form("form_inscripcion"):
-                st.write("##### Materias habilitadas para vos:")
-                
-                # Función para mostrar nombre lindo en la lista
-                def formato(m):
-                    info = PLAN_ESTUDIOS[m]
-                    return f"{m} ({info['duracion']} - {info['anio']}° Año)"
-
-                seleccion = st.multiselect("Seleccioná:", disponibles, format_func=formato)
-                
-                if st.form_submit_button("Confirmar Inscripción"):
-                    nuevos = [{"Nombre": usuario, "Materia": m, "Estado": "Cursando"} for m in seleccion]
-                    df = pd.concat([df, pd.DataFrame(nuevos)], ignore_index=True)
-                    guardar_registro(conn, df)
-        else:
-            st.success("¡Estás al día! No tenés materias pendientes habilitadas.")
-
-    # 3. VER GRUPO
-    with tab3:
-        st.subheader("Buscador de Compañeros")
-        materia_busqueda = st.selectbox("Elegí una materia:", list(PLAN_ESTUDIOS.keys()))
-        
-        alumnos = df[(df["Materia"] == materia_busqueda) & (df["Estado"] == "Cursando")]["Nombre"].unique()
-        
-        if len(alumnos) > 0:
-            st.success(f"Estudiantes inscriptos ({len(alumnos)}):")
-            st.markdown(f"### 🧑‍🎓 {', '.join(alumnos)}")
-        else:
-            st.warning("Nadie se anotó en esta materia todavía.")
-
-    # 4. MIS INSCRIPCIONES (Resumen)
-    with tab4:
-        st.subheader(f"Inscripciones de {usuario}")
-        
-        if mis_cursando:
-            datos_tabla = []
-            for m in mis_cursando:
-                info = PLAN_ESTUDIOS.get(m, {})
-                datos_tabla.append({
-                    "Materia": m,
-                    "Año": f"{info.get('anio', '-')}°",
-                    "Duración": info.get("duracion", "-")
-                })
-            
-            st.dataframe(pd.DataFrame(datos_tabla), use_container_width=True, hide_index=True)
-            
-            st.divider()
-            st.write("🛑 **Dar de baja materias:**")
-            a_borrar = st.multiselect("Elegí la materia que querés borrar:", mis_cursando)
-            
-            if st.button("Eliminar Seleccionadas"):
-                if a_borrar:
-                    df = df[~((df["Nombre"] == usuario) & (df["Materia"].isin(a_borrar)) & (df["Estado"] == "Cursando"))]
-                    guardar_registro(conn, df)
-        else:
-            st.info("No te anotaste en ninguna materia por ahora.")
-
-if __name__ == "__main__":
-    main()
-
