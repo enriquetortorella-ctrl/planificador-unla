@@ -82,7 +82,7 @@ PLAN_ESTUDIOS = {
     "Informática (Módulos)": {"anio": 99, "duracion": "Requisito", "correlativas": []}
 }
 
-# --- BIBLIOTECA DE LINKS (GENERADA AUTOMÁTICAMENTE) ---
+# --- BIBLIOTECA DE LINKS (CARGADA AUTOMÁTICAMENTE) ---
 BIBLIOTECA = {
     "GENERAL_UNLA": "https://drive.google.com/drive/u/0/folders/1C7LQskupjeW2sO2wnD_upyYnuxip4oqs",
     "Taller de Producción de Textos": "https://drive.google.com/drive/folders/1EhI-sOwxbQkkSMWbPT6yGCUQF6xCu7Mp",
@@ -150,12 +150,11 @@ def obtener_datos():
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(worksheet=0, ttl=0)
-        # Limpieza y Retrocompatibilidad: Si falta la columna Modalidad, la creamos
+        # Aseguramos compatibilidad con registros viejos
         if not df.empty and "Modalidad" not in df.columns:
             df["Modalidad"] = "Regular"
         return df, conn
     except Exception as e:
-        # Devolvemos columnas base si falla
         return pd.DataFrame(columns=["Nombre", "Materia", "Estado", "Modalidad"]), None
 
 def guardar_registro(conn, df_nuevo):
@@ -170,7 +169,7 @@ def guardar_registro(conn, df_nuevo):
     except Exception as e:
         st.error(f"Error al guardar: {e}")
 
-# --- MOSTRAR ALIENTO PENDIENTE ---
+# --- FUNCIONES AUXILIARES ---
 def mostrar_mensaje_aliento():
     if st.session_state["mensaje_aliento_pendiente"]:
         mensaje = st.session_state["mensaje_aliento_pendiente"]
@@ -178,7 +177,6 @@ def mostrar_mensaje_aliento():
         st.balloons()
         st.session_state["mensaje_aliento_pendiente"] = None
 
-# --- VERIFICAR TÍTULOS ---
 def verificar_titulos(mis_aprobadas, usuario):
     materias_intermedio = [m for m, d in PLAN_ESTUDIOS.items() if d['anio'] in [1, 2, 3]]
     tiene_intermedio = set(materias_intermedio).issubset(set(mis_aprobadas))
@@ -212,7 +210,7 @@ def verificar_titulos(mis_aprobadas, usuario):
 def main():
     st.title("🔴 Planificador Círculo Rojo")
     
-    # ALERTAS
+    # ALERTAS DE FECHAS
     hoy = datetime.now().date()
     dias_aviso = 10
     for evento in CALENDARIO:
@@ -246,18 +244,19 @@ def main():
             st.subheader("📊 Estado del Grupo")
             cursada = df[df["Estado"] == "Cursando"]
             if not cursada.empty:
-                # --- LÓGICA DE VISUALIZACIÓN CON MODALIDAD ---
-                # Creamos columna de texto enriquecido para el display
-                cursada["Info_Display"] = cursada.apply(
-                    lambda x: f"{x['Nombre']} (🔄 CC)" if x.get("Modalidad") == "Contra Cursada" else x['Nombre'], 
-                    axis=1
-                )
-                
-                resumen = cursada.groupby("Materia")["Info_Display"].unique().reset_index()
-                resumen["Estudiantes"] = resumen["Info_Display"].apply(lambda x: ", ".join(x))
-                resumen["Inscriptos"] = resumen["Info_Display"].apply(len)
-                
-                st.dataframe(resumen[["Materia", "Inscriptos", "Estudiantes"]].sort_values(by="Inscriptos", ascending=False), hide_index=True, use_container_width=True)
+                # --- VISUALIZACIÓN DIVIDIDA PARA NO USUARIOS ---
+                resultados = []
+                for mat in cursada["Materia"].unique():
+                    sub = cursada[cursada["Materia"] == mat]
+                    reg = sub[sub["Modalidad"] != "Contra Cursada"]["Nombre"].unique()
+                    cc = sub[sub["Modalidad"] == "Contra Cursada"]["Nombre"].unique()
+                    resultados.append({
+                        "Materia": mat,
+                        "Inscriptos": len(reg) + len(cc),
+                        "📅 Regular": ", ".join(reg) if len(reg) > 0 else "-",
+                        "🔄 Contra Cursada": ", ".join(cc) if len(cc) > 0 else "-"
+                    })
+                st.dataframe(pd.DataFrame(resultados).sort_values("Inscriptos", ascending=False), hide_index=True, use_container_width=True)
         return
 
     mis_datos = df[df["Nombre"] == usuario]
@@ -322,9 +321,9 @@ def main():
     with tab2:
         st.subheader("Inscripción 2025")
         
-        # --- NUEVO SELECTOR DE MODALIDAD ---
+        # --- SELECTOR DE MODALIDAD ---
         col_mod1, col_mod2 = st.columns(2)
-        modalidad = col_mod1.radio("Tipo de Cursada:", ["📅 Regular (Según Plan)", "🔄 Contra Cursada (Fuera de término)"], horizontal=True)
+        modalidad = col_mod1.radio("Tipo de Cursada:", ["📅 Cursada Regular (Según Plan)", "🔄 Contra Cursada (Fuera de término)"], horizontal=True)
         modalidad_texto = "Contra Cursada" if "Contra" in modalidad else "Regular"
         
         disponibles = []
@@ -342,7 +341,6 @@ def main():
                     return f"{m}  [{dur}]" if dur != "Requisito" else f"⭐ {m} [REQUISITO]"
                 seleccion = st.multiselect("Seleccioná:", disponibles, format_func=formato)
                 if st.form_submit_button("Confirmar Inscripción"):
-                    # Ahora guardamos TAMBIÉN la modalidad
                     nuevos = [{"Nombre": usuario, "Materia": m, "Estado": "Cursando", "Modalidad": modalidad_texto} for m in seleccion]
                     df = pd.concat([df, pd.DataFrame(nuevos)], ignore_index=True)
                     guardar_registro(conn, df)
@@ -353,39 +351,44 @@ def main():
         if not df.empty:
             cursada_gral = df[df["Estado"] == "Cursando"]
             if not cursada_gral.empty:
-                # --- VISUALIZACIÓN EN TAB 3 CON MODALIDAD ---
-                cursada_gral["Info_Display"] = cursada_gral.apply(
-                    lambda x: f"{x['Nombre']} (🔄 CC)" if x.get("Modalidad") == "Contra Cursada" else x['Nombre'], 
-                    axis=1
-                )
+                # --- VISUALIZACIÓN DIVIDIDA EN COLUMNAS ---
+                resultados = []
+                for mat in cursada_gral["Materia"].unique():
+                    sub = cursada_gral[cursada_gral["Materia"] == mat]
+                    # Filtramos por modalidad
+                    reg = sub[sub["Modalidad"] != "Contra Cursada"]["Nombre"].unique()
+                    cc = sub[sub["Modalidad"] == "Contra Cursada"]["Nombre"].unique()
+                    
+                    resultados.append({
+                        "Materia": mat,
+                        "Inscriptos": len(reg) + len(cc),
+                        "📅 Regular": ", ".join(reg) if len(reg) > 0 else "-",
+                        "🔄 Contra Cursada": ", ".join(cc) if len(cc) > 0 else "-"
+                    })
                 
-                res = cursada_gral.groupby("Materia")["Info_Display"].unique().reset_index()
-                res["Estudiantes"] = res["Info_Display"].apply(lambda x: ", ".join(x))
-                res["Inscriptos"] = res["Info_Display"].apply(len)
-                st.dataframe(res[["Materia", "Inscriptos", "Estudiantes"]].sort_values(by="Inscriptos", ascending=False), hide_index=True, use_container_width=True)
+                st.dataframe(pd.DataFrame(resultados).sort_values("Inscriptos", ascending=False), hide_index=True, use_container_width=True)
+        
         st.divider()
         st.write("🔍 **Buscar materia:**")
         mat_busq = st.selectbox("Elegí materia:", list(PLAN_ESTUDIOS.keys()))
         
-        # --- NUEVA VISUALIZACIÓN SEPARADA ---
         cursando_mat = df[(df["Materia"] == mat_busq) & (df["Estado"] == "Cursando")]
         if not cursando_mat.empty:
-            # Separamos en dos listas
-            regulares = []
-            contra = []
+            col_a, col_b = st.columns(2)
             
-            for _, row in cursando_mat.iterrows():
-                mod = row.get("Modalidad", "Regular")
-                if mod == "Contra Cursada":
-                    contra.append(row['Nombre'])
-                else:
-                    regulares.append(row['Nombre'])
-            
-            # Mostramos en dos carteles separados para que no haya dudas
-            if regulares:
-                st.success(f"📅 **Cursada Regular:** {', '.join(regulares)}")
-            if contra:
-                st.warning(f"🔄 **Contra Cursada (Fuera de término):** {', '.join(contra)}")
+            # Lista Regular
+            regulares = cursando_mat[cursando_mat["Modalidad"] != "Contra Cursada"]["Nombre"].unique()
+            if len(regulares) > 0:
+                col_a.success(f"📅 **Regular ({len(regulares)}):**\n\n" + "\n".join([f"- {n}" for n in regulares]))
+            else:
+                col_a.info("📅 Regular: Nadie")
+                
+            # Lista Contra Cursada
+            contra = cursando_mat[cursando_mat["Modalidad"] == "Contra Cursada"]["Nombre"].unique()
+            if len(contra) > 0:
+                col_b.warning(f"🔄 **Contra Cursada ({len(contra)}):**\n\n" + "\n".join([f"- {n}" for n in contra]))
+            else:
+                col_b.info("🔄 Contra Cursada: Nadie")
                 
         else: st.warning("Nadie anotado.")
 
@@ -395,14 +398,12 @@ def main():
             datos = []
             for m in mis_cursando:
                 info = PLAN_ESTUDIOS.get(m, {})
-                # Buscamos la modalidad específica de esta materia para este usuario
                 registro = mis_datos[(mis_datos["Materia"] == m) & (mis_datos["Estado"] == "Cursando")]
                 mod = registro.iloc[0].get("Modalidad", "Regular") if not registro.empty else "Regular"
-                
                 datos.append({
                     "Materia": m, 
                     "Año": f"{info.get('anio', '-')}", 
-                    "Modalidad": mod, # Agregamos columna modalidad aquí
+                    "Modalidad": mod,
                     "Duración": info.get("duracion", "-")
                 })
             st.dataframe(pd.DataFrame(datos), use_container_width=True, hide_index=True)
@@ -417,21 +418,14 @@ def main():
     with tab5:
         st.subheader("📚 Biblioteca de Apuntes (Drive)")
         st.caption("Elegí una materia para ir a la carpeta compartida.")
-        
-        # Botón General
         st.link_button("📂 Ir a Carpeta General (UNLa)", BIBLIOTECA["GENERAL_UNLA"], type="primary")
         st.divider()
-        
-        # Filtro: Solo mostrar materias que NO sean la general
         opciones_con_link = [m for m in BIBLIOTECA.keys() if m != "GENERAL_UNLA"]
-        
         col1, col2 = st.columns([3, 1])
         materia_elegida = col1.selectbox("Buscar materia específica:", opciones_con_link)
-        
         if materia_elegida:
             link = BIBLIOTECA[materia_elegida]
             col2.link_button(f"📂 Abrir Carpeta", link, type="primary")
-        
         st.info("💡 Consejo: Subí tus resúmenes para ayudar a los demás.")
 
 if __name__ == "__main__":
