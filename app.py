@@ -324,7 +324,7 @@ def main():
         
         # --- NUEVO SELECTOR DE MODALIDAD ---
         col_mod1, col_mod2 = st.columns(2)
-        modalidad = col_mod1.radio("Tipo de Cursada:", ["📅 Regular", "🔄 Contra Cursada"], horizontal=True)
+        modalidad = col_mod1.radio("Tipo de Cursada:", ["📅 Regular (Según Plan)", "🔄 Contra Cursada (Fuera de término)"], horizontal=True)
         modalidad_texto = "Contra Cursada" if "Contra" in modalidad else "Regular"
         
         disponibles = []
@@ -367,18 +367,26 @@ def main():
         st.write("🔍 **Buscar materia:**")
         mat_busq = st.selectbox("Elegí materia:", list(PLAN_ESTUDIOS.keys()))
         
-        # Filtro detallado para la búsqueda individual
+        # --- NUEVA VISUALIZACIÓN SEPARADA ---
         cursando_mat = df[(df["Materia"] == mat_busq) & (df["Estado"] == "Cursando")]
         if not cursando_mat.empty:
-            lista_alumnos = []
+            # Separamos en dos listas
+            regulares = []
+            contra = []
+            
             for _, row in cursando_mat.iterrows():
                 mod = row.get("Modalidad", "Regular")
                 if mod == "Contra Cursada":
-                    lista_alumnos.append(f"{row['Nombre']} (🔄 CC)")
+                    contra.append(row['Nombre'])
                 else:
-                    lista_alumnos.append(row['Nombre'])
+                    regulares.append(row['Nombre'])
             
-            st.success(f"En {mat_busq}: {', '.join(lista_alumnos)}")
+            # Mostramos en dos carteles separados para que no haya dudas
+            if regulares:
+                st.success(f"📅 **Cursada Regular:** {', '.join(regulares)}")
+            if contra:
+                st.warning(f"🔄 **Contra Cursada (Fuera de término):** {', '.join(contra)}")
+                
         else: st.warning("Nadie anotado.")
 
     with tab4:
