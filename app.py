@@ -150,9 +150,13 @@ def obtener_datos():
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(worksheet=0, ttl=0)
+        # Limpieza y Retrocompatibilidad: Si falta la columna Modalidad, la creamos
+        if not df.empty and "Modalidad" not in df.columns:
+            df["Modalidad"] = "Regular"
         return df, conn
     except Exception as e:
-        return pd.DataFrame(columns=["Nombre", "Materia", "Estado"]), None
+        # Devolvemos columnas base si falla
+        return pd.DataFrame(columns=["Nombre", "Materia", "Estado", "Modalidad"]), None
 
 def guardar_registro(conn, df_nuevo):
     if conn is None:
@@ -242,9 +246,17 @@ def main():
             st.subheader("📊 Estado del Grupo")
             cursada = df[df["Estado"] == "Cursando"]
             if not cursada.empty:
-                resumen = cursada.groupby("Materia")["Nombre"].unique().reset_index()
-                resumen["Estudiantes"] = resumen["Nombre"].apply(lambda x: ", ".join(x))
-                resumen["Inscriptos"] = resumen["Nombre"].apply(len)
+                # --- LÓGICA DE VISUALIZACIÓN CON MODALIDAD ---
+                # Creamos columna de texto enriquecido para el display
+                cursada["Info_Display"] = cursada.apply(
+                    lambda x: f"{x['Nombre']} (🔄 CC)" if x.get("Modalidad") == "Contra Cursada" else x['Nombre'], 
+                    axis=1
+                )
+                
+                resumen = cursada.groupby("Materia")["Info_Display"].unique().reset_index()
+                resumen["Estudiantes"] = resumen["Info_Display"].apply(lambda x: ", ".join(x))
+                resumen["Inscriptos"] = resumen["Info_Display"].apply(len)
+                
                 st.dataframe(resumen[["Materia", "Inscriptos", "Estudiantes"]].sort_values(by="Inscriptos", ascending=False), hide_index=True, use_container_width=True)
         return
 
@@ -303,18 +315,25 @@ def main():
                     st.session_state["mensaje_aliento_pendiente"] = MENSAJES_ALIENTO[materia]
                     break
             df = df[~((df["Nombre"] == usuario) & (df["Estado"] == "Aprobada"))]
-            nuevos = [{"Nombre": usuario, "Materia": m, "Estado": "Aprobada"} for m in nuevas_aprobadas]
+            nuevos = [{"Nombre": usuario, "Materia": m, "Estado": "Aprobada", "Modalidad": "Regular"} for m in nuevas_aprobadas]
             df = pd.concat([df, pd.DataFrame(nuevos)], ignore_index=True)
             guardar_registro(conn, df)
 
     with tab2:
         st.subheader("Inscripción 2025")
+        
+        # --- NUEVO SELECTOR DE MODALIDAD ---
+        col_mod1, col_mod2 = st.columns(2)
+        modalidad = col_mod1.radio("Tipo de Cursada:", ["📅 Regular", "🔄 Contra Cursada"], horizontal=True)
+        modalidad_texto = "Contra Cursada" if "Contra" in modalidad else "Regular"
+        
         disponibles = []
         for materia, data in PLAN_ESTUDIOS.items():
             if materia in mis_aprobadas: continue
             if materia in mis_cursando: continue
             faltan = [c for c in data['correlativas'] if c not in mis_aprobadas]
             if not faltan: disponibles.append(materia)
+        
         if disponibles:
             with st.form("form_inscripcion"):
                 def formato(m):
@@ -323,7 +342,8 @@ def main():
                     return f"{m}  [{dur}]" if dur != "Requisito" else f"⭐ {m} [REQUISITO]"
                 seleccion = st.multiselect("Seleccioná:", disponibles, format_func=formato)
                 if st.form_submit_button("Confirmar Inscripción"):
-                    nuevos = [{"Nombre": usuario, "Materia": m, "Estado": "Cursando"} for m in seleccion]
+                    # Ahora guardamos TAMBIÉN la modalidad
+                    nuevos = [{"Nombre": usuario, "Materia": m, "Estado": "Cursando", "Modalidad": modalidad_texto} for m in seleccion]
                     df = pd.concat([df, pd.DataFrame(nuevos)], ignore_index=True)
                     guardar_registro(conn, df)
         else: st.success("¡Estás al día!")
@@ -333,15 +353,32 @@ def main():
         if not df.empty:
             cursada_gral = df[df["Estado"] == "Cursando"]
             if not cursada_gral.empty:
-                res = cursada_gral.groupby("Materia")["Nombre"].unique().reset_index()
-                res["Estudiantes"] = res["Nombre"].apply(lambda x: ", ".join(x))
-                res["Inscriptos"] = res["Nombre"].apply(len)
+                # --- VISUALIZACIÓN EN TAB 3 CON MODALIDAD ---
+                cursada_gral["Info_Display"] = cursada_gral.apply(
+                    lambda x: f"{x['Nombre']} (🔄 CC)" if x.get("Modalidad") == "Contra Cursada" else x['Nombre'], 
+                    axis=1
+                )
+                
+                res = cursada_gral.groupby("Materia")["Info_Display"].unique().reset_index()
+                res["Estudiantes"] = res["Info_Display"].apply(lambda x: ", ".join(x))
+                res["Inscriptos"] = res["Info_Display"].apply(len)
                 st.dataframe(res[["Materia", "Inscriptos", "Estudiantes"]].sort_values(by="Inscriptos", ascending=False), hide_index=True, use_container_width=True)
         st.divider()
         st.write("🔍 **Buscar materia:**")
         mat_busq = st.selectbox("Elegí materia:", list(PLAN_ESTUDIOS.keys()))
-        alum = df[(df["Materia"] == mat_busq) & (df["Estado"] == "Cursando")]["Nombre"].unique()
-        if len(alum) > 0: st.success(f"En {mat_busq}: {', '.join(alum)}")
+        
+        # Filtro detallado para la búsqueda individual
+        cursando_mat = df[(df["Materia"] == mat_busq) & (df["Estado"] == "Cursando")]
+        if not cursando_mat.empty:
+            lista_alumnos = []
+            for _, row in cursando_mat.iterrows():
+                mod = row.get("Modalidad", "Regular")
+                if mod == "Contra Cursada":
+                    lista_alumnos.append(f"{row['Nombre']} (🔄 CC)")
+                else:
+                    lista_alumnos.append(row['Nombre'])
+            
+            st.success(f"En {mat_busq}: {', '.join(lista_alumnos)}")
         else: st.warning("Nadie anotado.")
 
     with tab4:
@@ -350,7 +387,16 @@ def main():
             datos = []
             for m in mis_cursando:
                 info = PLAN_ESTUDIOS.get(m, {})
-                datos.append({"Materia": m, "Año": f"{info.get('anio', '-')}", "Duración": info.get("duracion", "-")})
+                # Buscamos la modalidad específica de esta materia para este usuario
+                registro = mis_datos[(mis_datos["Materia"] == m) & (mis_datos["Estado"] == "Cursando")]
+                mod = registro.iloc[0].get("Modalidad", "Regular") if not registro.empty else "Regular"
+                
+                datos.append({
+                    "Materia": m, 
+                    "Año": f"{info.get('anio', '-')}", 
+                    "Modalidad": mod, # Agregamos columna modalidad aquí
+                    "Duración": info.get("duracion", "-")
+                })
             st.dataframe(pd.DataFrame(datos), use_container_width=True, hide_index=True)
             st.divider()
             borrar = st.multiselect("Dar de baja:", mis_cursando)
