@@ -3,12 +3,12 @@ import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 from streamlit_lottie import st_lottie
 import requests
-from datetime import datetime, date
+import time
 
-# --- 1. CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="Círculo Rojo v2.6", page_icon="🔴", layout="wide")
+# --- 1. CONFIGURACIÓN ---
+st.set_page_config(page_title="Círculo Rojo UNLa", page_icon="🔴", layout="wide")
 
-# Estilos CSS personalizados
+# Estilos CSS de alta fidelidad
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
@@ -21,45 +21,49 @@ st.markdown("""
         border-left: 5px solid #800000;
         margin-bottom: 15px;
         text-align: center;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.3);
     }
     .kpi-value { font-size: 32px; font-weight: bold; color: #ffffff; }
     .kpi-label { font-size: 14px; color: #a0a0a0; text-transform: uppercase; letter-spacing: 1px; }
     
     .stButton>button {
         border-radius: 12px;
-        height: 3em;
-        transition: all 0.3s ease;
+        height: 3.2em;
         font-weight: bold;
-        width: 100%;
+        transition: all 0.3s ease;
     }
     .stButton>button:hover {
         background-color: #800000 !important;
-        color: white !important;
         transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(128,0,0,0.3);
+        box-shadow: 0 5px 15px rgba(128,0,0,0.4);
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. FUNCIONES DE APOYO ---
+# --- 2. CARGA DE ANIMACIONES (MEJORADA) ---
 @st.cache_data(ttl=3600)
 def load_lottieurl(url: str):
     try:
-        r = requests.get(url, timeout=10)
-        return r.json() if r.status_code == 200 else None
+        # Añadimos un header para evitar bloqueos
+        headers = {"User-Agent": "Mozilla/5.0"}
+        r = requests.get(url, headers=headers, timeout=15)
+        if r.status_code != 200: return None
+        return r.json()
     except:
         return None
 
-# --- 3. CONSTANTES Y DATOS ---
+# --- 3. DATOS Y CONSTANTES ---
 LISTA_CHICOS = ["Seleccionar...", "Kike", "Maca", "Juli La Más Genia", "Cristian", "Ivan", "Facu Uriarte"]
-TOTAL_MATERIAS_CARRERA = 42
+TOTAL_MATERIAS = 42
 
+# Usamos links directos de LottieFiles estables
 ANIMACIONES = {
-    "Lagarto 🦎": "https://assets10.lottiefiles.com/packages/lf20_hy4per6f.json",
-    "Dragón 🐉": "https://assets8.lottiefiles.com/packages/lf20_5mjt84fc.json",
-    "Robot 🤖": "https://assets10.lottiefiles.com/private_files/lf30_igp67uub.json"
+    "Robot 🤖": "https://assets10.lottiefiles.com/private_files/lf30_igp67uub.json",
+    "Lagarto 🦎": "https://assets1.lottiefiles.com/packages/lf20_hy4per6f.json",
+    "Dragón 🐉": "https://assets8.lottiefiles.com/packages/lf20_5mjt84fc.json"
 }
 
+# Plan de estudios completo
 PLAN_ESTUDIOS = {
     "Taller de Producción de Textos": {"anio": 1, "correlativas": []},
     "Introducción a la Matemática": {"anio": 1, "correlativas": []},
@@ -104,115 +108,87 @@ PLAN_ESTUDIOS = {
     "Informática (Módulos)": {"anio": 99, "correlativas": []}
 }
 
-# --- 4. APLICACIÓN PRINCIPAL ---
+# --- 4. LÓGICA DE APLICACIÓN ---
 def main():
-    # Conexión a GSheets
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(worksheet=0, ttl=0)
     except:
-        st.error("⚠️ Error de conexión con la base de datos.")
+        st.error("⚠️ No se pudo conectar con la base de datos.")
         return
 
-    # SIDEBAR
     with st.sidebar:
-        st.markdown("<h1 style='color:#800000; text-align:center; margin-bottom:0;'>🔴 CÍRCULO</h1>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align:center; color:#888; margin-top:0;'>PLANIFICADOR UNLa</p>", unsafe_allow_html=True)
+        st.markdown("<h1 style='color:#800000; text-align:center;'>🔴 CÍRCULO ROJO</h1>", unsafe_allow_html=True)
+        usuario = st.selectbox("👤 ¿Quién sos?", LISTA_CHICOS, key="user_sel")
+        st.markdown("---")
         
-        # Selector de usuario con KEY única para evitar errores de duplicado
-        usuario = st.selectbox("👤 ¿Quién eres?", LISTA_CHICOS, key="main_user_selector")
+        if "menu" not in st.session_state: st.session_state.menu = "Inicio"
+        
+        if st.button("🏠 Inicio", key="btn_i"): st.session_state.menu = "Inicio"
+        if st.button("📊 Mi Historial", key="btn_h"): st.session_state.menu = "Historial"
+        if st.button("📝 Inscribirse", key="btn_ins"): st.session_state.menu = "Inscripcion"
         
         st.markdown("---")
-        if "menu" not in st.session_state:
-            st.session_state.menu = "Inicio"
-            
-        if st.button("🏠 Inicio", key="nav_home"): st.session_state.menu = "Inicio"
-        if st.button("📊 Mi Progreso", key="nav_prog"): st.session_state.menu = "Progreso"
-        
-        st.markdown("---")
-        st.caption("Versión 2026.2.9")
+        st.link_button("🔗 SIU Guaraní", "https://guarani.unla.edu.ar/unla/")
 
-    # PANTALLA DE BIENVENIDA SI NO HAY USUARIO
     if usuario == "Seleccionar...":
-        st.title("Bienvenido al Planificador")
-        st.info("Elegí tu nombre en la barra lateral para cargar tus datos y tu avatar.")
+        st.title("Planificador de Carrera")
+        st.info("👋 Selecciona tu nombre en la barra lateral para comenzar.")
         return
 
-    # FILTRADO DE DATOS
+    # Cálculos de KPI
     mis_datos = df[df["Nombre"] == usuario]
-    aprobadas_list = mis_datos[mis_datos["Estado"] == "Aprobada"]["Materia"].tolist()
-    cursando_list = mis_datos[mis_datos["Estado"] == "Cursando"]["Materia"].tolist()
-    
-    num_aprobadas = len(aprobadas_list)
-    num_cursando = len(cursando_list)
-    progreso_ratio = num_aprobadas / TOTAL_MATERIAS_CARRERA
+    aprobadas = len(mis_datos[mis_datos["Estado"] == "Aprobada"])
+    cursando = len(mis_datos[mis_datos["Estado"] == "Cursando"])
+    restantes = TOTAL_MATERIAS - aprobadas
+    progreso_ratio = aprobadas / TOTAL_MATERIAS
 
-    # HEADER CON KPIs MODERNOS
-    st.markdown(f"## ¡Hola, {usuario}! 👋")
+    # Header con KPIs Modernos
+    st.markdown(f"## ¡Hola, {usuario}! ✨")
     
     k1, k2, k3, k4 = st.columns(4)
-    with k1: st.markdown(f"<div class='kpi-card'><div class='kpi-label'>Materias Aprobadas</div><div class='kpi-value'>{num_aprobadas}</div></div>", unsafe_allow_html=True)
-    with k2: st.markdown(f"<div class='kpi-card'><div class='kpi-label'>En Cursada</div><div class='kpi-value'>{num_cursando}</div></div>", unsafe_allow_html=True)
-    with k3: st.markdown(f"<div class='kpi-card'><div class='kpi-label'>Materias Restantes</div><div class='kpi-value'>{TOTAL_MATERIAS_CARRERA - num_aprobadas}</div></div>", unsafe_allow_html=True)
-    with k4: st.markdown(f"<div class='kpi-card'><div class='kpi-label'>Avance Total</div><div class='kpi-value'>{int(progreso_ratio*100)}%</div></div>", unsafe_allow_html=True)
+    with k1: st.markdown(f"<div class='kpi-card'><div class='kpi-label'>Materias Aprobadas</div><div class='kpi-value'>{aprobadas}</div></div>", unsafe_allow_html=True)
+    with k2: st.markdown(f"<div class='kpi-card'><div class='kpi-label'>Cursando</div><div class='kpi-value'>{cursando}</div></div>", unsafe_allow_html=True)
+    with k3: st.markdown(f"<div class='kpi-card'><div class='kpi-label'>Restantes</div><div class='kpi-value'>{restantes}</div></div>", unsafe_allow_html=True)
+    with k4: st.markdown(f"<div class='kpi-card'><div class='kpi-label'>Avance Carrera</div><div class='kpi-value'>{int(progreso_ratio*100)}%</div></div>", unsafe_allow_html=True)
     
     st.progress(progreso_ratio)
-    st.markdown("---")
 
-    # LÓGICA DE MENÚ
-    if st.session_state.menu == "Inicio":
-        col_avatar, col_status = st.columns([1, 1.5])
-        
-        with col_avatar:
+    # Navegación
+    menu = st.session_state.menu
+
+    if menu == "Inicio":
+        c_avatar, c_info = st.columns([1, 1.5])
+        with c_avatar:
             st.subheader("Tu Avatar")
-            mascota_fav = st.selectbox("Elegí tu compañero:", list(ANIMACIONES.keys()), key="avatar_selector")
-            anim_data = load_lottieurl(ANIMACIONES[mascota_fav])
-            
-            if anim_data:
-                # La velocidad aumenta con el progreso
-                st_lottie(anim_data, height=280, key=f"lottie_{usuario}", speed=1 + progreso_ratio)
+            mascota = st.selectbox("Elegí tu compañero:", list(ANIMACIONES.keys()), key="masc_sel")
+            anim = load_lottieurl(ANIMACIONES[mascota])
+            if anim:
+                # El avatar se mueve a una velocidad basada en tu progreso
+                st_lottie(anim, height=280, key=f"anim_{usuario}_{mascota}", speed=1 + progreso_ratio)
             else:
-                st.warning("🔄 Conectando con servidor de animaciones...")
-
-        with col_status:
-            st.subheader("📌 Cursadas Actuales")
-            if cursando_list:
-                for m in cursando_list:
-                    st.success(f"📖 **{m}**")
+                st.warning("🔄 El servidor de animaciones está tardando. Reintenta en unos segundos...")
+        
+        with c_info:
+            st.subheader("📖 Cursadas actuales")
+            materias_c = mis_datos[mis_datos["Estado"] == "Cursando"]["Materia"].tolist()
+            if materias_c:
+                for m in materias_c: st.success(f"📌 {m}")
             else:
-                st.info("No tienes materias en curso actualmente. ¡Anotate en la próxima inscripción!")
+                st.info("No tenés materias en curso.")
 
-    elif st.session_state.menu == "Progreso":
-        st.subheader("Actualizar Historial de Materias")
-        st.write("Seleccioná todas las materias que ya tenés aprobadas (por final o promoción):")
+    elif menu == "Historial":
+        st.subheader("Gestionar mis materias")
+        aprobadas_actuales = mis_datos[mis_datos["Estado"] == "Aprobada"]["Materia"].tolist()
+        seleccion = st.multiselect("Marcá las materias aprobadas:", list(PLAN_ESTUDIOS.keys()), default=aprobadas_actuales)
         
-        nuevas_aprobadas = st.multiselect(
-            "Materias aprobadas:", 
-            list(PLAN_ESTUDIOS.keys()), 
-            default=aprobadas_list,
-            key="multi_aprobadas_update"
-        )
-        
-        if st.button("💾 Guardar Mi Progreso", key="save_progress_btn"):
-            # Limpiamos registros anteriores de 'Aprobada' para este usuario
-            df_limpio = df[~((df["Nombre"] == usuario) & (df["Estado"] == "Aprobada"))]
-            
-            # Creamos los nuevos registros
-            nuevos_rows = []
-            for m in nuevas_aprobadas:
-                nuevos_rows.append({
-                    "Nombre": usuario,
-                    "Materia": m,
-                    "Estado": "Aprobada",
-                    "Modalidad": "Regular"
-                })
-            
-            df_final = pd.concat([df_limpio, pd.DataFrame(nuevos_rows)], ignore_index=True)
-            
-            # Guardamos en Google Sheets
+        if st.button("💾 Guardar Historial"):
+            df_new = df[~((df["Nombre"] == usuario) & (df["Estado"] == "Aprobada"))]
+            nuevos_rows = [{"Nombre": usuario, "Materia": m, "Estado": "Aprobada", "Modalidad": "Regular"} for m in seleccion]
+            df_final = pd.concat([df_new, pd.DataFrame(nuevos_rows)], ignore_index=True)
             conn.update(worksheet=0, data=df_final)
             st.cache_data.clear()
-            st.success("¡Historial actualizado correctamente!")
+            st.success("¡Progreso actualizado!")
             st.rerun()
 
 if __name__ == "__main__":
