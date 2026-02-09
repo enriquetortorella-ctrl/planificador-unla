@@ -1,110 +1,147 @@
 import streamlit as st
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
-from streamlit_lottie import st_lottie
-import requests
 
-# --- 1. CONFIGURACIÓN ---
-st.set_page_config(page_title="Círculo Rojo v2.7", page_icon="🔴", layout="wide")
+# --- 1. CONFIGURACIÓN Y ESTÉTICA 8-BIT ---
+st.set_page_config(page_title="Círculo Rojo RPG", page_icon="⚔️", layout="wide")
 
-# Estilos CSS PRO
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap');
-    html, body, [class*="css"] { font-family: 'Inter', sans-serif; background-color: #0e1117; }
-    .kpi-card {
-        background-color: #1e1e26;
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+    /* Contenedor del Personaje */
+    .pixel-box {
+        background: #1e1e26;
+        border: 4px solid #ffffff;
+        box-shadow: 6px 6px 0px #800000;
         padding: 20px;
-        border-radius: 15px;
-        border-left: 5px solid #800000;
-        margin-bottom: 15px;
         text-align: center;
+        margin-bottom: 20px;
     }
-    .kpi-value { font-size: 32px; font-weight: bold; color: #ffffff; }
-    .kpi-label { font-size: 14px; color: #a0a0a0; text-transform: uppercase; }
-    .stButton>button { border-radius: 12px; height: 3em; font-weight: bold; width: 100%; transition: 0.3s; }
-    .stButton>button:hover { background-color: #800000 !important; transform: scale(1.02); }
+    
+    .pixel-img {
+        width: 150px;
+        image-rendering: pixelated;
+        margin: 10px;
+    }
+
+    /* Estilo de Ítems Desbloqueados */
+    .item-card {
+        background: #2d2d3a;
+        border: 2px solid #555;
+        border-radius: 8px;
+        padding: 10px;
+        margin: 5px;
+        text-align: center;
+        font-size: 0.9em;
+    }
+
+    /* Títulos estilo Retro */
+    .retro-title {
+        font-family: 'Press Start 2P', cursive;
+        color: #ff4b4b;
+        font-size: 18px;
+        text-shadow: 2px 2px #000;
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. CARGA DE ANIMACIONES ---
-@st.cache_data(ttl=3600)
-def load_lottieurl(url: str):
-    try:
-        r = requests.get(url, timeout=5)
-        return r.json() if r.status_code == 200 else None
-    except: return None
-
-# Enlaces actualizados y súper estables
-ANIMACIONES = {
-    "Lagarto 🦎": "https://assets1.lottiefiles.com/packages/lf20_hy4per6f.json",
-    "Robot 🤖": "https://assets10.lottiefiles.com/private_files/lf30_igp67uub.json",
-    "Dragón 🐉": "https://assets8.lottiefiles.com/packages/lf20_5mjt84fc.json"
+# --- 2. DICCIONARIO DE LOS 42 DESBLOQUEOS ---
+RECOMPENSAS = {
+    1: "☕ Café Frío", 2: "📒 Cuaderno de Notas", 3: "🖊️ Resaltador Gastado", 
+    4: "🍕 Sobra de Pizza", 5: "🎒 Mochila Pesada", 6: "🔋 Batería Portátil",
+    7: "📑 Fotocopias PDF", 8: "👓 Anteojos de Descanso", 9: "🍎 Manzana de Recreo",
+    10: "🎧 Playlist de Lo-Fi", 11: "💾 Pendrive Perdido", 12: "🥤 Energizante",
+    13: "🚌 Abono de Colectivo", 14: "📅 Calendario Tachado", 15: "🛡️ Escudo de Correlativas",
+    16: "💻 Laptop con Stickers", 17: "🐁 Mouse Inalámbrico", 18: "📚 Libro de 800 págs",
+    19: "🥪 Sándwich de Comedor", 20: "🔥 Aura de Segundo Año", 21: "🏹 Flecha de Parciales",
+    22: "🧮 Calculadora Científica", 23: "🖋️ Pluma de Oro", 24: "🕵️ Capa de Invisible",
+    25: "👟 Zapatillas Cómodas", 26: "🕰️ Reloj de 25 Horas", 27: "🧠 Memoria Expandida",
+    28: "🌩️ Rayo de Ideas", 29: "🗺️ Mapa de la UNLa", 30: "🪄 Varita de Aprobación",
+    31: "💎 Gema del Conocimiento", 32: "🧪 Poción de Energía", 33: "📜 Pergamino de Leyes",
+    34: "🔑 Llave del Éxito", 35: "🧥 Túnica de Magíster", 36: "🦾 Brazo de Hierro",
+    37: "🐉 Montura de Dragón", 38: "⚔️ Espada Legendaria", 39: "🪐 Anillo del Saber",
+    40: "🦅 Alas de Libertad", 41: "🌌 Capa Cósmica", 42: "👑 CORONA DEL GRADUADO"
 }
 
-# --- 3. DATOS ---
-LISTA_CHICOS = ["Seleccionar...", "Kike", "Maca", "Juli La Más Genia", "Cristian", "Ivan", "Facu Uriarte"]
-TOTAL_MATERIAS = 42
+# --- 3. LÓGICA DE AVATARES (DiceBear API) ---
+def get_avatar_url(seed, level):
+    if level < 10:
+        style = "pixel-art"      # Estilo inicial simple
+    elif level < 25:
+        style = "miniavs"        # Estilo caricatura
+    elif level < 42:
+        style = "bottts-neutral" # Estilo robots avanzados
+    else:
+        style = "adventurer"     # Estilo épico final
+    
+    return f"https://api.dicebear.com/7.x/{style}/svg?seed={seed}"
 
-# --- 4. APP ---
+# --- 4. FUNCIÓN PRINCIPAL ---
 def main():
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(worksheet=0, ttl=0)
     except:
-        st.error("⚠️ Error de conexión.")
+        st.error("Error al conectar con el servidor de datos.")
         return
 
     with st.sidebar:
-        st.markdown("<h1 style='color:#800000; text-align:center;'>🔴 CÍRCULO ROJO</h1>", unsafe_allow_html=True)
-        usuario = st.selectbox("👤 ¿Quién sos?", LISTA_CHICOS, key="user_sel")
+        st.markdown("<p class='retro-title'>RED CIRCLE RPG</p>", unsafe_allow_html=True)
+        usuario = st.selectbox("👤 SELECT PLAYER", ["Seleccionar..."] + list(df["Nombre"].unique()), key="rpg_user")
+        
         st.markdown("---")
-        if "menu" not in st.session_state: st.session_state.menu = "Inicio"
-        if st.button("🏠 Inicio"): st.session_state.menu = "Inicio"
-        if st.button("📊 Mi Historial"): st.session_state.menu = "Historial"
+        if "menu" not in st.session_state: st.session_state.menu = "Dashboard"
+        if st.button("🏠 Status"): st.session_state.menu = "Dashboard"
+        if st.button("🎒 Inventario"): st.session_state.menu = "Inventario"
 
     if usuario == "Seleccionar...":
-        st.title("Planificador 2026")
-        st.info("Elegí tu nombre para ver tu progreso.")
+        st.info("Elegí tu personaje para iniciar la partida.")
         return
 
-    # Cálculos
-    mis_datos = df[df["Nombre"] == usuario]
-    aprobadas = len(mis_datos[mis_datos["Estado"] == "Aprobada"])
-    cursando = len(mis_datos[mis_datos["Estado"] == "Cursando"])
-    progreso = aprobadas / TOTAL_MATERIAS
-
-    st.markdown(f"## ¡Hola, {usuario}! 👋")
+    # Datos del Usuario
+    aprobadas = len(df[(df["Nombre"] == usuario) & (df["Estado"] == "Aprobada")])
     
-    # KPIs MODERNOS (Cambiado 'Finales' por 'Materias')
-    c1, c2, c3, c4 = st.columns(4)
-    with c1: st.markdown(f"<div class='kpi-card'><div class='kpi-label'>Materias Aprobadas</div><div class='kpi-value'>{aprobadas}</div></div>", unsafe_allow_html=True)
-    with c2: st.markdown(f"<div class='kpi-card'><div class='kpi-label'>Cursando</div><div class='kpi-value'>{cursando}</div></div>", unsafe_allow_html=True)
-    with c3: st.markdown(f"<div class='kpi-card'><div class='kpi-label'>Restantes</div><div class='kpi-value'>{TOTAL_MATERIAS - aprobadas}</div></div>", unsafe_allow_html=True)
-    with c4: st.markdown(f"<div class='kpi-card'><div class='kpi-label'>Avance Total</div><div class='kpi-value'>{int(progreso*100)}%</div></div>", unsafe_allow_html=True)
-    
-    st.progress(progreso)
-
-    if st.session_state.menu == "Inicio":
-        col1, col2 = st.columns([1, 1.5])
-        with col1:
-            st.subheader("Tu Avatar")
-            mascota = st.selectbox("Elegí tu compañero:", list(ANIMACIONES.keys()), key="masc_sel")
-            anim = load_lottieurl(ANIMACIONES[mascota])
-            if anim:
-                st_lottie(anim, height=280, key=f"lottie_{mascota}", speed=1 + progreso)
-            else:
-                # Respaldo visual si internet falla
-                st.markdown(f"<h1 style='font-size: 150px; text-align: center;'>{mascota[-2:]}</h1>", unsafe_allow_html=True)
-                st.caption("Cargando animación completa...")
+    if st.session_state.menu == "Dashboard":
+        col_char, col_stats = st.columns([1, 1.5])
         
-        with col2:
-            st.subheader("📌 Cursando ahora")
-            actuales = mis_datos[mis_datos["Estado"] == "Cursando"]["Materia"].tolist()
-            if actuales:
-                for m in actuales: st.success(f"📖 {m}")
-            else:
-                st.info("Sin cursadas activas.")
+        with col_char:
+            st.markdown("<div class='pixel-box'>", unsafe_allow_html=True)
+            avatar_url = get_avatar_url(usuario, aprobadas)
+            st.image(avatar_url, use_container_width=True)
+            st.markdown(f"**LVL: {aprobadas}**")
+            
+            # Título honorífico según nivel
+            if aprobadas < 14: rango = "Ingresante"
+            elif aprobadas < 28: rango = "Sobreviviente"
+            elif aprobadas < 42: rango = "Casi Licenciado"
+            else: rango = "LEYENDA VIVIENTE"
+            st.success(rango)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        with col_stats:
+            st.subheader("Estadísticas de Poder")
+            st.write(f"Materias conquistadas: {aprobadas} / 42")
+            st.progress(aprobadas / 42)
+            
+            # Próximo desbloqueo
+            next_lvl = aprobadas + 1
+            if next_lvl <= 42:
+                st.warning(f"Siguiente ítem: **{RECOMPENSAS[next_lvl]}**")
+                st.caption(f"Falta {1} materia para subir de nivel.")
+
+    elif st.session_state.menu == "Inventario":
+        st.subheader("Tu Mochila de Objetos")
+        mis_items = [v for k, v in RECOMPENSAS.items() if aprobadas >= k]
+        
+        if not mis_items:
+            st.info("Tu mochila está vacía. ¡Aprobá tu primera materia!")
+        else:
+            cols = st.columns(3)
+            for i, item in enumerate(mis_items):
+                with cols[i % 3]:
+                    st.markdown(f"<div class='item-card'>{item}</div>", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
+
