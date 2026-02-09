@@ -1,28 +1,41 @@
 import streamlit as st
 import pandas as pd
 from streamlit_gsheets import GSheetsConnection
+import os
 
-# --- 1. CONFIGURACIÓN ---
-st.set_page_config(page_title="Círculo Rojo", page_icon="🔴", layout="wide")
+# --- 1. CONFIGURACIÓN DE PÁGINA ---
+st.set_page_config(page_title="Círculo Rojo - UNLa", page_icon="🔴", layout="wide")
 
-# Estilos CSS (Recuperando el look oscuro y profesional con toques RPG)
+# Estilos CSS (RPG Dark Mode & Pixel Art)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;700&display=swap');
-    html, body, [class*="css"] { font-family: 'Inter', sans-serif; background-color: #0e1117; }
     
-    .main-card { background-color: #1e1e26; padding: 20px; border-radius: 15px; border-left: 5px solid #800000; margin-bottom: 15px; }
-    .kpi-val { font-size: 28px; font-weight: bold; color: #ff4b4b; }
-    .retro-font { font-family: 'Press Start 2P', cursive; font-size: 12px; color: #ff4b4b; }
+    .stApp { background-color: #0e1117; color: #ffffff; }
     
-    /* Contenedor Avatar */
-    .avatar-frame {
-        background: #1e1e26;
-        border: 3px solid #ffffff;
-        box-shadow: 4px 4px 0px #800000;
-        padding: 15px;
-        text-align: center;
+    .avatar-container {
+        border: 4px solid #5d6d7e;
+        background: #2c3e50;
+        padding: 20px;
         border-radius: 10px;
+        text-align: center;
+        box-shadow: 8px 8px 0px #000000;
+        margin-bottom: 20px;
+    }
+    
+    .retro-font { 
+        font-family: 'Press Start 2P', cursive; 
+        font-size: 10px; 
+        color: #f1c40f; 
+        text-shadow: 2px 2px #000;
+    }
+    
+    .main-card { 
+        background-color: #1e1e26; 
+        padding: 15px; 
+        border-radius: 10px; 
+        border-left: 5px solid #800000; 
+        margin-bottom: 10px; 
     }
     </style>
     """, unsafe_allow_html=True)
@@ -78,97 +91,118 @@ RECOMPENSAS = {
 }
 
 # --- 3. FUNCIONES ---
-def get_avatar_url(seed, level):
-    style = "pixel-art" if level < 15 else "bottts-neutral"
-    return f"https://api.dicebear.com/7.x/{style}/svg?seed={seed}"
+def get_avatar_slug(usuario):
+    # Diccionario ajustado a tus archivos en carpeta assets
+    personajes = {
+        "Facu": "assets/trevor1.gif",
+        "Kike": "assets/trevor2.gif",
+        "Sofia": "assets/eri_lv1.gif",
+        "Javier": "assets/tarma_lv1.gif",
+        "Elena": "assets/fio_lv1.gif"
+    }
+    path = personajes.get(usuario, "")
+    if path and os.path.exists(path):
+        return path
+    return "https://api.dicebear.com/7.x/pixel-art/svg?seed=placeholder"
 
-# --- 4. APP ---
+# --- 4. APP PRINCIPAL ---
 def main():
-    if "menu" not in st.session_state: st.session_state.menu = "Inicio"
+    if "menu" not in st.session_state:
+        st.session_state.menu = "Inicio"
 
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(worksheet=0, ttl=0)
-    except:
-        st.error("⚠️ Error conectando a Google Sheets.")
+        
+        # Limpieza de Nombres
+        df["Nombre"] = df["Nombre"].replace(
+            ["Facu Uriarte", "facu uriarte", "Facundo Uriarte", "FACU"], "Facu"
+        )
+    except Exception as e:
+        st.error(f"❌ Error conectando a Google Sheets: {e}")
         return
 
-    # --- SIDEBAR (RECUPERADO) ---
+    # --- SIDEBAR ---
     with st.sidebar:
-        st.markdown("<h1 style='color:#800000;'>Círculo Rojo</h1>", unsafe_allow_html=True)
-        usuario = st.selectbox("👤 ¿Quién sos?", ["Seleccionar..."] + list(df["Nombre"].unique()))
+        st.markdown("<p class='retro-font' style='font-size:15px;'>CIRCULO ROJO</p>", unsafe_allow_html=True)
+        nombres_disponibles = sorted(list(df["Nombre"].unique()))
+        usuario = st.selectbox("👤 SOLDADO:", ["Seleccionar..."] + nombres_disponibles)
         
-        st.markdown("### 📁 MENÚ")
+        st.markdown("---")
         if st.button("🏠 Inicio", use_container_width=True): st.session_state.menu = "Inicio"; st.rerun()
         if st.button("✅ Mi Historial", use_container_width=True): st.session_state.menu = "Historial"; st.rerun()
         if st.button("📝 Inscribirse", use_container_width=True): st.session_state.menu = "Inscripcion"; st.rerun()
         if st.button("👥 El Grupo", use_container_width=True): st.session_state.menu = "Grupo"; st.rerun()
-        if st.button("📚 Apuntes", use_container_width=True): st.session_state.menu = "Apuntes"; st.rerun()
-        if st.button("🎒 Inventario RPG", use_container_width=True): st.session_state.menu = "Inventario"; st.rerun()
-        
+        if st.button("🎒 Inventario", use_container_width=True): st.session_state.menu = "Inventario"; st.rerun()
         st.markdown("---")
         st.link_button("🏫 SIU Guaraní", "https://guarani.unla.edu.ar/unla/")
 
     if usuario == "Seleccionar...":
         st.title("Gestión de Carrera - UNLa")
-        st.info("Selecciona tu nombre en el menú lateral.")
+        st.info("👈 Selecciona tu nombre en el panel lateral para cargar tu perfil.")
         return
 
-    # Datos
+    # Datos filtrados
     mis_datos = df[df["Nombre"] == usuario]
     aprobadas_list = mis_datos[mis_datos["Estado"] == "Aprobada"]["Materia"].tolist()
     n_aprobadas = len(aprobadas_list)
 
     # --- RENDERIZADO DE PÁGINAS ---
-    if st.session_state.menu == "Inicio":
-        st.subheader(f"¡Hola, {usuario}! 👋")
-        
-        # KPIs (Recuperados de tu imagen)
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Aprobadas", n_aprobadas)
-        c2.metric("Cursando", len(mis_datos[mis_datos["Estado"] == "Cursando"]))
-        c3.metric("Restantes", 42 - n_aprobadas)
-        c4.metric("Progreso", f"{int((n_aprobadas/42)*100)}%")
-        st.progress(n_aprobadas/42)
 
+    if st.session_state.menu == "Inicio":
+        st.subheader(f"¡Bienvenido, {usuario}! 👋")
+        
         col_av, col_cur = st.columns([1, 1.5])
         with col_av:
-            st.markdown("<div class='avatar-frame'>", unsafe_allow_html=True)
-            st.image(get_avatar_url(usuario, n_aprobadas), width=150)
-            st.markdown(f"<p class='retro-font'>LVL {n_aprobadas}</p>", unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
+            path_img = get_avatar_slug(usuario)
+            st.markdown('<div class="avatar-container">', unsafe_allow_html=True)
+            st.markdown('<p class="retro-font" style="font-size:8px;">MISSION START</p>', unsafe_allow_html=True)
+            st.image(path_img, width=150)
+            st.markdown(f"""
+                <div style="background:#1a252f; padding:5px; margin-top:10px; border:2px solid #f1c40f;">
+                    <p class="retro-font" style="margin:0;">{usuario.upper()}</p>
+                    <p class="retro-font" style="color:#2ecc71; font-size:8px; margin:0;">LVL: {n_aprobadas}</p>
+                </div>
+            """, unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
         
         with col_cur:
-            st.subheader("📌 Actualmente cursando:")
+            st.markdown("### 📊 ESTADO ACTUAL")
+            c1, c2 = st.columns(2)
+            c1.metric("PROGRESO", f"{int((n_aprobadas/42)*100)}%")
+            c2.metric("CURSANDO", len(mis_datos[mis_datos["Estado"] == "Cursando"]))
+            st.progress(n_aprobadas/42)
+            
+            st.markdown("#### 📖 CURSANDO AHORA:")
             cursando = mis_datos[mis_datos["Estado"] == "Cursando"]["Materia"].tolist()
             if cursando:
-                for m in cursando: st.success(f"📖 {m}")
-            else: st.info("No hay cursadas activas.")
+                for m in cursando: st.markdown(f"<div class='main-card'>⚔️ {m}</div>", unsafe_allow_html=True)
+            else: st.info("No tienes materias en curso.")
 
     elif st.session_state.menu == "Historial":
         st.header("✅ Mi Historial Académico")
-        # Aquí puedes poner la tabla o el multiselect para actualizar
-        st.write(mis_datos)
+        st.dataframe(mis_datos[["Materia", "Estado", "Nota"]].sort_values("Estado"), use_container_width=True)
 
     elif st.session_state.menu == "Inscripcion":
         st.header("📝 Próximas Materias")
-        st.write("Materias que ya podés cursar según tus correlativas:")
+        st.write("Materias que puedes cursar según tus correlativas:")
         disponibles = [m for m, i in PLAN_ESTUDIOS.items() if m not in aprobadas_list and all(c in aprobadas_list for c in i["correlativas"])]
-        for d in disponibles: st.info(d)
+        if disponibles:
+            for d in disponibles: st.success(f"🔓 **{d}**")
+        else: st.warning("No tienes nuevas materias disponibles.")
 
     elif st.session_state.menu == "Grupo":
         st.header("👥 El Grupo")
-        st.write("Aquí va la comparativa de progreso del grupo...")
-        st.bar_chart(df.groupby("Nombre")["Estado"].apply(lambda x: (x == "Aprobada").sum()))
-
-    elif st.session_state.menu == "Apuntes":
-        st.header("📚 Repositorio de Apuntes")
-        st.info("Espacio para compartir drives o carpetas de finales.")
+        ranking = df[df["Estado"] == "Aprobada"].groupby("Nombre")["Materia"].count().sort_values(ascending=False)
+        st.bar_chart(ranking)
+        st.dataframe(ranking)
 
     elif st.session_state.menu == "Inventario":
         st.header("🎒 Inventario RPG")
         ganados = [v for k, v in RECOMPENSAS.items() if n_aprobadas >= k]
-        for g in ganados: st.code(g)
+        if ganados:
+            for g in ganados: st.markdown(f"<div class='main-card' style='border-left-color: gold;'>{g}</div>", unsafe_allow_html=True)
+        else: st.info("Sigue aprobando para desbloquear objetos.")
 
 if __name__ == "__main__":
     main()
