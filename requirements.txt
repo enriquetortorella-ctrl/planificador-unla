@@ -3,3 +3,4 @@ streamlit-gsheets
 pandas
 streamlit-lottie
 requests
+st-gsheets-connection
