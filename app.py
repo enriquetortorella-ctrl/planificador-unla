@@ -25,7 +25,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. PLAN DE ESTUDIOS (Resumido para el ejemplo, mantén el tuyo completo) ---
+# --- 2. PLAN DE ESTUDIOS ---
 PLAN_ESTUDIOS = {
     "Taller de Producción de Textos": {"anio": 1, "correlativas": []},
     "Introducción a la Matemática": {"anio": 1, "correlativas": []},
@@ -70,7 +70,7 @@ PLAN_ESTUDIOS = {
     "Informática (Módulos)": {"anio": 99, "correlativas": []}
 }
 
-# --- 3. LÓGICA DE AVATARES (CORREGIDA PARA MAYÚSCULAS) ---
+# --- 3. LÓGICA DE AVATARES ---
 def get_avatar_slug(usuario, n_aprobadas):
     squad = {
         "Facu": "Allen",
@@ -80,27 +80,16 @@ def get_avatar_slug(usuario, n_aprobadas):
         "Kike": "Marco",
         "Cristian": "Tarma"
     }
-    
     char_base = squad.get(usuario, "Marco")
-
-    # Niveles cada 10 materias
     if n_aprobadas <= 10: nivel = 1
     elif n_aprobadas <= 20: nivel = 2
     elif n_aprobadas <= 30: nivel = 3
     else: nivel = 4
-
-    # Ruta EXACTA como aparece en tu GitHub (Mayúscula_Número.gif)
+    
     nombre_archivo = f"{char_base}_{nivel}.gif"
     path = os.path.join("assets", nombre_archivo)
-    
-    # Verificación extra: si no existe, intenta con minúsculas por si acaso
-    if not os.path.exists(path):
-        path = os.path.join("assets", nombre_archivo.lower())
-
     if os.path.exists(path):
         return path, nivel
-    
-    # Fallback si nada funciona
     return "https://api.dicebear.com/7.x/pixel-art/svg?seed=army", 1
 
 # --- 4. MAIN ---
@@ -110,9 +99,11 @@ def main():
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(worksheet=0, ttl=0)
+        # Limpieza de nombres para que coincidan con el squad
         df["Nombre"] = df["Nombre"].replace(["Facu Uriarte", "Facundo Uriarte"], "Facu")
+        df["Nombre"] = df["Nombre"].replace(["Juli la mas genia"], "Juli")
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"Error de conexión: {e}")
         return
 
     with st.sidebar:
@@ -120,18 +111,24 @@ def main():
         nombres_disponibles = sorted(list(df["Nombre"].unique()))
         usuario = st.selectbox("👤 SOLDADO:", ["Seleccionar..."] + nombres_disponibles)
         st.markdown("---")
-        if st.button("🏠 INICIO"): st.session_state.menu = "Inicio"; st.rerun()
-        if st.button("✅ HISTORIAL"): st.session_state.menu = "Historial"; st.rerun()
-        if st.button("📝 PRÓXIMAS"): st.session_state.menu = "Proximas"; st.rerun()
-        if st.button("👥 GRUPO"): st.session_state.menu = "Grupo"; st.rerun()
+        if st.button("🏠 INICIO", use_container_width=True): st.session_state.menu = "Inicio"; st.rerun()
+        if st.button("✅ HISTORIAL", use_container_width=True): st.session_state.menu = "Historial"; st.rerun()
+        if st.button("📝 PRÓXIMAS", use_container_width=True): st.session_state.menu = "Proximas"; st.rerun()
+        if st.button("👥 EL GRUPO", use_container_width=True): st.session_state.menu = "Grupo"; st.rerun()
 
     if usuario == "Seleccionar...":
         st.title("SQUAD COMMAND - UNLa")
+        st.info("Selecciona un soldado para cargar la misión.")
         return
 
+    # LÓGICA DE FILTRADO (KPIs Corregidos)
     mis_datos = df[df["Nombre"] == usuario]
-    aprobadas_list = mis_datos[mis_datos["Estado"] == "Aprobada"]["Materia"].tolist()
-    n_aprobadas = len(aprobadas_list)
+    aprobadas = mis_datos[mis_datos["Estado"] == "Aprobada"]
+    cursando = mis_datos[mis_datos["Estado"] == "Cursando"]
+    
+    n_aprobadas = len(aprobadas)
+    n_cursando = len(cursando)
+    aprobadas_nombres = aprobadas["Materia"].tolist()
 
     if st.session_state.menu == "Inicio":
         col_av, col_cur = st.columns([1, 2])
@@ -142,25 +139,52 @@ def main():
             st.markdown(f'<p class="retro-font" style="font-size:8px;">GEAR: {armas[lvl_actual-1]}</p>', unsafe_allow_html=True)
             st.image(img_path, width=160)
             st.markdown(f'<p class="retro-font">{usuario.upper()}</p>', unsafe_allow_html=True)
+            st.markdown(f'<p class="retro-font" style="color:#2ecc71; font-size:8px;">LVL: {n_aprobadas}</p>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
         
         with col_cur:
-            st.metric("AVANCE", f"{int((n_aprobadas/42)*100)}%", f"{42-n_aprobadas} materias faltantes")
+            st.markdown("### 📊 ESTADO ACTUAL")
+            c1, c2 = st.columns(2)
+            c1.metric("PROGRESO", f"{int((n_aprobadas/42)*100)}%")
+            c2.metric("CURSANDO", n_cursando)
             st.progress(n_aprobadas/42)
+            st.write(f"⬆️ {42 - n_aprobadas} materias para el final de la guerra.")
+            
             st.markdown("#### ⚔️ MATERIAS EN CURSO:")
-            for m in mis_datos[mis_datos["Estado"] == "Cursando"]["Materia"]:
-                st.markdown(f"<div class='main-card'>📖 {m}</div>", unsafe_allow_html=True)
+            if not cursando.empty:
+                for m in cursando["Materia"]:
+                    st.markdown(f"<div class='main-card'>📖 {m}</div>", unsafe_allow_html=True)
+            else:
+                st.info("No hay misiones activas.")
 
     elif st.session_state.menu == "Historial":
-        st.dataframe(mis_datos[["Materia", "Estado", "Nota"]])
+        st.header("✅ REGISTRO DE COMBATE")
+        st.dataframe(mis_datos[["Materia", "Estado", "Nota"]].sort_values("Estado"), use_container_width=True)
 
     elif st.session_state.menu == "Proximas":
-        disponibles = [m for m, i in PLAN_ESTUDIOS.items() if m not in aprobadas_list and all(c in aprobadas_list for c in i["correlativas"])]
-        for d in disponibles: st.success(f"🔓 {d}")
+        st.header("📝 PRÓXIMOS OBJETIVOS")
+        disponibles = [m for m, i in PLAN_ESTUDIOS.items() if m not in aprobadas_nombres and all(c in aprobadas_nombres for c in i["correlativas"])]
+        if disponibles:
+            for d in disponibles: st.success(f"🔓 {d}")
+        else: st.warning("Sin misiones disponibles por ahora.")
 
     elif st.session_state.menu == "Grupo":
+        st.header("👥 RECUENTO DE TROPAS")
+        # Ranking de aprobadas
         ranking = df[df["Estado"] == "Aprobada"].groupby("Nombre")["Materia"].count().sort_values(ascending=False)
         st.bar_chart(ranking)
+        
+        st.markdown("---")
+        st.subheader("📋 LISTADO ESTRATÉGICO POR MATERIA")
+        
+        # Filtramos solo lo que están "Cursando" actualmente
+        cursando_ahora = df[df["Estado"] == "Cursando"]
+        if not cursando_ahora.empty:
+            tabla_grupo = cursando_ahora.groupby("Materia")["Nombre"].agg(['count', lambda x: ', '.join(x)]).reset_index()
+            tabla_grupo.columns = ["MATERIA", "SOLDADOS", "INTEGRANTES"]
+            st.dataframe(tabla_grupo.sort_values("SOLDADOS", ascending=False), use_container_width=True, hide_index=True)
+        else:
+            st.info("Nadie está cursando materias actualmente.")
 
 if __name__ == "__main__":
     main()
