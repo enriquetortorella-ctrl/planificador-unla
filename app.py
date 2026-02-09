@@ -4,7 +4,7 @@ from streamlit_gsheets import GSheetsConnection
 import os
 
 # --- 1. CONFIGURACIÓN DE PÁGINA ---
-st.set_page_config(page_title="Círculo Rojo - UNLa", page_icon="🔴", layout="wide")
+st.set_page_config(page_title="Círculo Rojo - SQUAD", page_icon="🔫", layout="wide")
 
 # Estilos CSS (RPG Dark Mode & Pixel Art)
 st.markdown("""
@@ -14,13 +14,14 @@ st.markdown("""
     .stApp { background-color: #0e1117; color: #ffffff; }
     
     .avatar-container {
-        border: 4px solid #5d6d7e;
-        background: #2c3e50;
+        border: 3px solid #f1c40f;
+        background: rgba(44, 62, 80, 0.8);
         padding: 20px;
-        border-radius: 10px;
+        border-radius: 5px;
         text-align: center;
-        box-shadow: 8px 8px 0px #000000;
-        margin-bottom: 20px;
+        box-shadow: 5px 5px 0px #000;
+        display: inline-block;
+        min-width: 220px;
     }
     
     .retro-font { 
@@ -28,6 +29,7 @@ st.markdown("""
         font-size: 10px; 
         color: #f1c40f; 
         text-shadow: 2px 2px #000;
+        margin: 5px 0;
     }
     
     .main-card { 
@@ -40,7 +42,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. DATOS: PLAN DE ESTUDIOS Y RECOMPENSAS ---
+# --- 2. PLAN DE ESTUDIOS ---
 PLAN_ESTUDIOS = {
     "Taller de Producción de Textos": {"anio": 1, "correlativas": []},
     "Introducción a la Matemática": {"anio": 1, "correlativas": []},
@@ -85,31 +87,38 @@ PLAN_ESTUDIOS = {
     "Informática (Módulos)": {"anio": 99, "correlativas": []}
 }
 
-RECOMPENSAS = {
-    1: "☕ Café Frío", 5: "🎒 Mochila UNLa", 10: "🎧 Auriculares Pro", 
-    20: "🔥 Aura Roja", 30: "🗡️ Espada de Tesis", 42: "👑 TITULO"
-}
-
-# --- 3. FUNCIONES ---
-def get_avatar_slug(usuario):
-    # Diccionario ajustado a tus archivos en carpeta assets
-    personajes = {
-        "Facu": "assets/trevor1.gif",
-        "Kike": "assets/trevor2.gif",
-        "Sofia": "assets/eri_lv1.gif",
-        "Javier": "assets/tarma_lv1.gif",
-        "Elena": "assets/fio_lv1.gif"
+# --- 3. LÓGICA DE AVATARES Y EVOLUCIÓN ---
+def get_avatar_slug(usuario, n_aprobadas):
+    squad = {
+        "Facu": "allen",
+        "Ivan": "trevor",
+        "Maca": "alisa",
+        "Juli": "nadia",
+        "Kike": "marco",
+        "Cristian": "tarma"
     }
-    path = personajes.get(usuario, "")
-    if path and os.path.exists(path):
-        return path
-    return "https://api.dicebear.com/7.x/pixel-art/svg?seed=placeholder"
+    
+    char_base = squad.get(usuario, "marco")
+
+    # Niveles cada 10 materias
+    if n_aprobadas <= 10: nivel = 1
+    elif n_aprobadas <= 20: nivel = 2
+    elif n_aprobadas <= 30: nivel = 3
+    else: nivel = 4
+
+    path = f"assets/{char_base}_{nivel}.gif"
+    
+    # Fallback si no existe el nivel o la carpeta
+    if os.path.exists(path):
+        return path, nivel
+    return f"assets/{char_base}_1.gif", 1
 
 # --- 4. APP PRINCIPAL ---
 def main():
     if "menu" not in st.session_state:
         st.session_state.menu = "Inicio"
 
+    # Conexión a GSheets
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(worksheet=0, ttl=0)
@@ -119,27 +128,34 @@ def main():
             ["Facu Uriarte", "facu uriarte", "Facundo Uriarte", "FACU"], "Facu"
         )
     except Exception as e:
-        st.error(f"❌ Error conectando a Google Sheets: {e}")
+        st.error(f"❌ Error conectando a la base de datos: {e}")
         return
 
     # --- SIDEBAR ---
     with st.sidebar:
-        st.markdown("<p class='retro-font' style='font-size:15px;'>CIRCULO ROJO</p>", unsafe_allow_html=True)
+        st.markdown("<p class='retro-font' style='font-size:15px; color:#ff4b4b;'>SQUAD COMMAND</p>", unsafe_allow_html=True)
         nombres_disponibles = sorted(list(df["Nombre"].unique()))
         usuario = st.selectbox("👤 SOLDADO:", ["Seleccionar..."] + nombres_disponibles)
         
         st.markdown("---")
-        if st.button("🏠 Inicio", use_container_width=True): st.session_state.menu = "Inicio"; st.rerun()
-        if st.button("✅ Mi Historial", use_container_width=True): st.session_state.menu = "Historial"; st.rerun()
-        if st.button("📝 Inscribirse", use_container_width=True): st.session_state.menu = "Inscripcion"; st.rerun()
-        if st.button("👥 El Grupo", use_container_width=True): st.session_state.menu = "Grupo"; st.rerun()
-        if st.button("🎒 Inventario", use_container_width=True): st.session_state.menu = "Inventario"; st.rerun()
+        if st.button("🏠 INICIO", use_container_width=True): 
+            st.session_state.menu = "Inicio"
+            st.rerun()
+        if st.button("✅ HISTORIAL", use_container_width=True): 
+            st.session_state.menu = "Historial"
+            st.rerun()
+        if st.button("📝 PRÓXIMAS", use_container_width=True): 
+            st.session_state.menu = "Proximas"
+            st.rerun()
+        if st.button("👥 EL GRUPO", use_container_width=True): 
+            st.session_state.menu = "Grupo"
+            st.rerun()
         st.markdown("---")
-        st.link_button("🏫 SIU Guaraní", "https://guarani.unla.edu.ar/unla/")
+        st.link_button("🏫 SIU GUARANÍ", "https://guarani.unla.edu.ar/unla/")
 
     if usuario == "Seleccionar...":
-        st.title("Gestión de Carrera - UNLa")
-        st.info("👈 Selecciona tu nombre en el panel lateral para cargar tu perfil.")
+        st.title("BIENVENIDO AL CÍRCULO ROJO")
+        st.info("👈 Selecciona tu nombre para ver tu estado de misión.")
         return
 
     # Datos filtrados
@@ -147,62 +163,65 @@ def main():
     aprobadas_list = mis_datos[mis_datos["Estado"] == "Aprobada"]["Materia"].tolist()
     n_aprobadas = len(aprobadas_list)
 
-    # --- RENDERIZADO DE PÁGINAS ---
-
+    # --- PÁGINA: INICIO ---
     if st.session_state.menu == "Inicio":
-        st.subheader(f"¡Bienvenido, {usuario}! 👋")
+        st.subheader(f"¡Bienvenido, Soldado {usuario}! 🫡")
         
-        col_av, col_cur = st.columns([1, 1.5])
+        col_av, col_cur = st.columns([1, 2])
+        
         with col_av:
-            path_img = get_avatar_slug(usuario)
+            img_path, lvl_actual = get_avatar_slug(usuario, n_aprobadas)
+            armas = ["Pistola", "HMG", "Shotgun", "TANK MODE"]
+            
             st.markdown('<div class="avatar-container">', unsafe_allow_html=True)
-            st.markdown('<p class="retro-font" style="font-size:8px;">MISSION START</p>', unsafe_allow_html=True)
-            st.image(path_img, width=150)
+            st.markdown(f'<p class="retro-font" style="font-size:8px; margin-bottom:15px;">GEAR: {armas[lvl_actual-1]}</p>', unsafe_allow_html=True)
+            
+            st.image(img_path, width=160)
+            
             st.markdown(f"""
-                <div style="background:#1a252f; padding:5px; margin-top:10px; border:2px solid #f1c40f;">
-                    <p class="retro-font" style="margin:0;">{usuario.upper()}</p>
-                    <p class="retro-font" style="color:#2ecc71; font-size:8px; margin:0;">LVL: {n_aprobadas}</p>
+                <div style="background:rgba(26, 37, 47, 0.9); padding:10px; margin-top:10px; border:1px solid #f1c40f;">
+                    <p class="retro-font" style="margin:0; font-size:12px;">{usuario.upper()}</p>
+                    <p class="retro-font" style="color:#2ecc71; font-size:9px; margin:0;">APROBADAS: {n_aprobadas}</p>
                 </div>
             """, unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
         
         with col_cur:
-            st.markdown("### 📊 ESTADO ACTUAL")
+            st.markdown("### 📊 ESTADO DE CARRERA")
             c1, c2 = st.columns(2)
             c1.metric("PROGRESO", f"{int((n_aprobadas/42)*100)}%")
-            c2.metric("CURSANDO", len(mis_datos[mis_datos["Estado"] == "Cursando"]))
+            c2.metric("RESTANTES", 42 - n_aprobadas)
             st.progress(n_aprobadas/42)
             
-            st.markdown("#### 📖 CURSANDO AHORA:")
+            st.markdown("#### ⚔️ MATERIAS EN CURSO:")
             cursando = mis_datos[mis_datos["Estado"] == "Cursando"]["Materia"].tolist()
             if cursando:
-                for m in cursando: st.markdown(f"<div class='main-card'>⚔️ {m}</div>", unsafe_allow_html=True)
-            else: st.info("No tienes materias en curso.")
+                for m in cursando: 
+                    st.markdown(f"<div class='main-card'>📖 {m}</div>", unsafe_allow_html=True)
+            else: 
+                st.info("No hay misiones activas por ahora.")
 
+    # --- PÁGINA: HISTORIAL ---
     elif st.session_state.menu == "Historial":
-        st.header("✅ Mi Historial Académico")
-        st.dataframe(mis_datos[["Materia", "Estado", "Nota"]].sort_values("Estado"), use_container_width=True)
+        st.header("✅ Registro de Combate (Historial)")
+        st.dataframe(mis_datos[["Materia", "Estado", "Nota"]].sort_values("Estado", ascending=False), use_container_width=True)
 
-    elif st.session_state.menu == "Inscripcion":
-        st.header("📝 Próximas Materias")
+    # --- PÁGINA: PRÓXIMAS ---
+    elif st.session_state.menu == "Proximas":
+        st.header("📝 Próximos Objetivos")
         st.write("Materias que puedes cursar según tus correlativas:")
         disponibles = [m for m, i in PLAN_ESTUDIOS.items() if m not in aprobadas_list and all(c in aprobadas_list for c in i["correlativas"])]
         if disponibles:
             for d in disponibles: st.success(f"🔓 **{d}**")
-        else: st.warning("No tienes nuevas materias disponibles.")
+        else: st.warning("Sin nuevos objetivos desbloqueados. ¡Aprobá para avanzar!")
 
+    # --- PÁGINA: GRUPO ---
     elif st.session_state.menu == "Grupo":
-        st.header("👥 El Grupo")
+        st.header("👥 Recuento de Tropas")
         ranking = df[df["Estado"] == "Aprobada"].groupby("Nombre")["Materia"].count().sort_values(ascending=False)
         st.bar_chart(ranking)
-        st.dataframe(ranking)
-
-    elif st.session_state.menu == "Inventario":
-        st.header("🎒 Inventario RPG")
-        ganados = [v for k, v in RECOMPENSAS.items() if n_aprobadas >= k]
-        if ganados:
-            for g in ganados: st.markdown(f"<div class='main-card' style='border-left-color: gold;'>{g}</div>", unsafe_allow_html=True)
-        else: st.info("Sigue aprobando para desbloquear objetos.")
+        st.markdown("#### 🏆 Ranking de Supervivencia")
+        st.table(ranking)
 
 if __name__ == "__main__":
     main()
