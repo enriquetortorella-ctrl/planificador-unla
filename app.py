@@ -3,40 +3,26 @@ import pandas as pd
 from streamlit_gsheets import GSheetsConnection
 
 # --- 1. CONFIGURACIÓN ---
-st.set_page_config(page_title="Círculo Rojo RPG", page_icon="⚔️", layout="wide")
+st.set_page_config(page_title="Círculo Rojo", page_icon="🔴", layout="wide")
 
-# Estilos Pro
+# Estilos CSS (Recuperando el look oscuro y profesional con toques RPG)
 st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;700&display=swap');
+    html, body, [class*="css"] { font-family: 'Inter', sans-serif; background-color: #0e1117; }
     
-    html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+    .main-card { background-color: #1e1e26; padding: 20px; border-radius: 15px; border-left: 5px solid #800000; margin-bottom: 15px; }
+    .kpi-val { font-size: 28px; font-weight: bold; color: #ff4b4b; }
+    .retro-font { font-family: 'Press Start 2P', cursive; font-size: 12px; color: #ff4b4b; }
     
-    .pixel-box {
+    /* Contenedor Avatar */
+    .avatar-frame {
         background: #1e1e26;
-        border: 4px solid #ffffff;
-        box-shadow: 6px 6px 0px #800000;
-        padding: 20px;
+        border: 3px solid #ffffff;
+        box-shadow: 4px 4px 0px #800000;
+        padding: 15px;
         text-align: center;
-        border-radius: 4px;
-    }
-    
-    .retro-title {
-        font-family: 'Press Start 2P', cursive;
-        color: #ff4b4b;
-        font-size: 14px;
-        text-shadow: 2px 2px #000;
-        margin-bottom: 20px;
-    }
-
-    .item-card {
-        background: #2d2d3a;
-        border: 1px solid #444;
-        border-radius: 8px;
-        padding: 10px;
-        margin: 5px;
-        text-align: center;
-        font-size: 0.85em;
+        border-radius: 10px;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -87,106 +73,102 @@ PLAN_ESTUDIOS = {
 }
 
 RECOMPENSAS = {
-    1: "☕ Café Frío", 5: "🎒 Mochila UNLa", 10: "🎧 Lo-Fi Beats", 
-    20: "🔥 Aura Roja", 30: "🪄 Varita de Aprobación", 42: "👑 TITULO"
+    1: "☕ Café Frío", 5: "🎒 Mochila UNLa", 10: "🎧 Auriculares Pro", 
+    20: "🔥 Aura Roja", 30: "🗡️ Espada de Tesis", 42: "👑 TITULO"
 }
 
-# --- 3. LÓGICA DE AVATARES ---
+# --- 3. FUNCIONES ---
 def get_avatar_url(seed, level):
-    if level < 10: style = "pixel-art"
-    elif level < 25: style = "avataaars"
-    else: style = "bottts-neutral"
+    style = "pixel-art" if level < 15 else "bottts-neutral"
     return f"https://api.dicebear.com/7.x/{style}/svg?seed={seed}"
 
-# --- 4. APP PRINCIPAL ---
+# --- 4. APP ---
 def main():
-    if "menu" not in st.session_state: st.session_state.menu = "Status"
+    if "menu" not in st.session_state: st.session_state.menu = "Inicio"
 
     try:
         conn = st.connection("gsheets", type=GSheetsConnection)
         df = conn.read(worksheet=0, ttl=0)
     except:
-        st.error("Error de conexión con la base de datos.")
+        st.error("⚠️ Error conectando a Google Sheets.")
         return
 
+    # --- SIDEBAR (RECUPERADO) ---
     with st.sidebar:
-        st.markdown("<p class='retro-title'>RED CIRCLE RPG</p>", unsafe_allow_html=True)
-        usuario = st.selectbox("👤 JUGADOR", ["Seleccionar..."] + list(df["Nombre"].unique()))
+        st.markdown("<h1 style='color:#800000;'>Círculo Rojo</h1>", unsafe_allow_html=True)
+        usuario = st.selectbox("👤 ¿Quién sos?", ["Seleccionar..."] + list(df["Nombre"].unique()))
+        
+        st.markdown("### 📁 MENÚ")
+        if st.button("🏠 Inicio", use_container_width=True): st.session_state.menu = "Inicio"; st.rerun()
+        if st.button("✅ Mi Historial", use_container_width=True): st.session_state.menu = "Historial"; st.rerun()
+        if st.button("📝 Inscribirse", use_container_width=True): st.session_state.menu = "Inscripcion"; st.rerun()
+        if st.button("👥 El Grupo", use_container_width=True): st.session_state.menu = "Grupo"; st.rerun()
+        if st.button("📚 Apuntes", use_container_width=True): st.session_state.menu = "Apuntes"; st.rerun()
+        if st.button("🎒 Inventario RPG", use_container_width=True): st.session_state.menu = "Inventario"; st.rerun()
         
         st.markdown("---")
-        if st.button("🏠 Mi Status", use_container_width=True): 
-            st.session_state.menu = "Status"
-            st.rerun()
-        if st.button("📊 Plan de Carrera", use_container_width=True): 
-            st.session_state.menu = "Plan"
-            st.rerun()
-        if st.button("🎒 Inventario", use_container_width=True): 
-            st.session_state.menu = "Inventario"
-            st.rerun()
+        st.link_button("🏫 SIU Guaraní", "https://guarani.unla.edu.ar/unla/")
 
     if usuario == "Seleccionar...":
-        st.title("🕹️ Bienvenido al Planificador RPG")
-        st.info("Elegí tu nombre para cargar tu progreso.")
+        st.title("Gestión de Carrera - UNLa")
+        st.info("Selecciona tu nombre en el menú lateral.")
         return
 
-    # Cálculos
+    # Datos
     mis_datos = df[df["Nombre"] == usuario]
-    aprobadas = list(mis_datos[mis_datos["Estado"] == "Aprobada"]["Materia"])
-    n_aprobadas = len(aprobadas)
+    aprobadas_list = mis_datos[mis_datos["Estado"] == "Aprobada"]["Materia"].tolist()
+    n_aprobadas = len(aprobadas_list)
 
-    if st.session_state.menu == "Status":
-        col1, col2 = st.columns([1, 1.5])
-        with col1:
-            st.markdown("<div class='pixel-box'>", unsafe_allow_html=True)
-            st.image(get_avatar_url(usuario, n_aprobadas), width=180)
-            st.markdown(f"**LVL {n_aprobadas}**")
+    # --- RENDERIZADO DE PÁGINAS ---
+    if st.session_state.menu == "Inicio":
+        st.subheader(f"¡Hola, {usuario}! 👋")
+        
+        # KPIs (Recuperados de tu imagen)
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Aprobadas", n_aprobadas)
+        c2.metric("Cursando", len(mis_datos[mis_datos["Estado"] == "Cursando"]))
+        c3.metric("Restantes", 42 - n_aprobadas)
+        c4.metric("Progreso", f"{int((n_aprobadas/42)*100)}%")
+        st.progress(n_aprobadas/42)
+
+        col_av, col_cur = st.columns([1, 1.5])
+        with col_av:
+            st.markdown("<div class='avatar-frame'>", unsafe_allow_html=True)
+            st.image(get_avatar_url(usuario, n_aprobadas), width=150)
+            st.markdown(f"<p class='retro-font'>LVL {n_aprobadas}</p>", unsafe_allow_html=True)
             st.markdown("</div>", unsafe_allow_html=True)
         
-        with col2:
-            st.header(f"Player: {usuario}")
-            st.metric("Materias Conquistadas", f"{n_aprobadas}/42")
-            st.progress(n_aprobadas/42)
-            
+        with col_cur:
+            st.subheader("📌 Actualmente cursando:")
             cursando = mis_datos[mis_datos["Estado"] == "Cursando"]["Materia"].tolist()
             if cursando:
-                st.subheader("⚔️ Misiones en curso")
-                for c in cursando: st.success(c)
+                for m in cursando: st.success(f"📖 {m}")
+            else: st.info("No hay cursadas activas.")
 
-    elif st.session_state.menu == "Plan":
-        st.header("📊 Hoja de Ruta")
-        
-        tab1, tab2 = st.tabs(["Materias Disponibles", "Carrera Completa"])
-        
-        with tab1:
-            st.subheader("Disponibles para cursar ahora:")
-            disponibles = []
-            for mat, info in PLAN_ESTUDIOS.items():
-                if mat not in aprobadas:
-                    correlativas_ok = all(corr in aprobadas for corr in info["correlativas"])
-                    if correlativas_ok: disponibles.append(mat)
-            
-            if disponibles:
-                for d in disponibles: st.info(f"✅ {d}")
-            else:
-                st.write("No tenés materias disponibles por ahora.")
+    elif st.session_state.menu == "Historial":
+        st.header("✅ Mi Historial Académico")
+        # Aquí puedes poner la tabla o el multiselect para actualizar
+        st.write(mis_datos)
 
-        with tab2:
-            st.write("Estado de todas las materias:")
-            for mat in PLAN_ESTUDIOS.keys():
-                if mat in aprobadas:
-                    st.write(f"🟢 {mat} (Aprobada)")
-                else:
-                    st.write(f"⚪ {mat}")
+    elif st.session_state.menu == "Inscripcion":
+        st.header("📝 Próximas Materias")
+        st.write("Materias que ya podés cursar según tus correlativas:")
+        disponibles = [m for m, i in PLAN_ESTUDIOS.items() if m not in aprobadas_list and all(c in aprobadas_list for c in i["correlativas"])]
+        for d in disponibles: st.info(d)
+
+    elif st.session_state.menu == "Grupo":
+        st.header("👥 El Grupo")
+        st.write("Aquí va la comparativa de progreso del grupo...")
+        st.bar_chart(df.groupby("Nombre")["Estado"].apply(lambda x: (x == "Aprobada").sum()))
+
+    elif st.session_state.menu == "Apuntes":
+        st.header("📚 Repositorio de Apuntes")
+        st.info("Espacio para compartir drives o carpetas de finales.")
 
     elif st.session_state.menu == "Inventario":
         st.header("🎒 Inventario RPG")
-        mis_items = [v for k, v in RECOMPENSAS.items() if n_aprobadas >= k]
-        if mis_items:
-            cols = st.columns(3)
-            for i, item in enumerate(mis_items):
-                cols[i%3].markdown(f"<div class='item-card'>{item}</div>", unsafe_allow_html=True)
-        else:
-            st.write("Tu mochila está vacía.")
+        ganados = [v for k, v in RECOMPENSAS.items() if n_aprobadas >= k]
+        for g in ganados: st.code(g)
 
 if __name__ == "__main__":
     main()
