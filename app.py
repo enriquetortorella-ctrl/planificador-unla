@@ -11,7 +11,6 @@ st.markdown("""
     @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
     .stApp { background-color: #0b0d11; color: #e0e0e0; }
     
-    /* Botones de Materias en Curso (estilo tarjeta) */
     .stButton>button[key^="mision_"] {
         background: linear-gradient(135deg, #1a1c23 0%, #0d0e12 100%) !important;
         border: 2px solid #444 !important;
@@ -20,24 +19,15 @@ st.markdown("""
         text-align: left !important;
         padding: 20px !important;
         width: 100% !important;
-        height: auto !important;
-        display: block !important;
         margin-bottom: 10px !important;
     }
     
     .retro-font { font-family: 'Press Start 2P', cursive; color: #f1c40f; text-shadow: 2px 2px #000; }
     .hp-bar-text { font-family: 'Press Start 2P', cursive; font-size: 10px; color: #ff4b4b; }
-    
     .missing-badge {
         background-color: #ff4b4b; color: white; font-family: 'Press Start 2P', cursive;
         font-size: 10px; padding: 8px; border-radius: 4px; text-align: center; margin: 5px 0;
     }
-
-    /* Navegación y otros botones */
-    .stButton>button {
-        font-family: 'Press Start 2P', cursive; font-size: 10px !important;
-    }
-    
     [data-testid="stMetricValue"] { font-family: 'Press Start 2P', cursive; font-size: 20px !important; }
     [data-testid="sidebarSelfHosted"], section[data-testid="stSidebar"] { display: none; }
     </style>
@@ -97,13 +87,16 @@ def main():
     df = conn.read(worksheet=0, ttl=0)
     df.columns = [str(c).strip().capitalize() for c in df.columns]
     
+    # --- PARCHE DE SEGURIDAD PARA EL KEYERROR ---
+    if "Nota" not in df.columns:
+        df["Nota"] = "" # Creamos la columna si no existe para que no explote
+    
     st.markdown("<h1 class='retro-font' style='text-align:center; font-size:24px;'>SQUAD COMMAND</h1>", unsafe_allow_html=True)
     usuarios = sorted(list(df["Nombre"].unique()))
     usuario = st.selectbox("👤 SOLDADO:", ["Seleccionar..."] + usuarios, label_visibility="collapsed")
     
     if usuario == "Seleccionar...": return
 
-    # NAVEGACIÓN
     nav_cols = st.columns(4)
     with nav_cols[0]:
         if st.button("🏠 INICIO"): st.session_state.menu = "Inicio"; st.rerun()
@@ -116,71 +109,45 @@ def main():
 
     st.markdown("---")
 
-    # DATOS DEL USUARIO
     mis_datos = df[df["Nombre"] == usuario].copy()
     aprobadas_df = mis_datos[mis_datos["Estado"].str.strip().str.capitalize() == "Aprobada"]
     cursando_df = mis_datos[mis_datos["Estado"].str.strip().str.capitalize() == "Cursando"]
     
-    # Cálculo de Promedio
+    # Cálculo de Promedio seguro
     notas_validas = pd.to_numeric(aprobadas_df["Nota"], errors='coerce').dropna()
     promedio = notas_validas.mean() if not notas_validas.empty else 0.0
 
     if st.session_state.menu == "Inicio":
         col_av, col_cur = st.columns([1, 2])
-        
         with col_av:
             st.image(f"https://api.dicebear.com/7.x/pixel-art/svg?seed={usuario}", width=100)
             st.markdown(f"<p class='retro-font' style='font-size:14px;'>{usuario.upper()}</p>", unsafe_allow_html=True)
             st.metric("PROMEDIO", f"{promedio:.2f}")
-            st.markdown("<br>", unsafe_allow_html=True)
             st.link_button("📂 DRIVE", "https://google.com", use_container_width=True)
             st.link_button("🏛️ SIU", "https://guarani.unla.edu.ar/unla/", use_container_width=True)
         
         with col_cur:
-            kpi_cols = st.columns(2)
-            kpi_cols[0].metric("PROGRESO", f"{int((len(aprobadas_df)/TOTAL_MATERIAS)*100)}%")
-            kpi_cols[1].markdown(f'<div class="missing-badge">MISSING: {TOTAL_MATERIAS - len(aprobadas_df)}</div>', unsafe_allow_html=True)
+            st.metric("PROGRESO", f"{int((len(aprobadas_df)/TOTAL_MATERIAS)*100)}%")
+            st.markdown(f'<div class="missing-badge">FALTAN: {TOTAL_MATERIAS - len(aprobadas_df)}</div>', unsafe_allow_html=True)
             st.progress(len(aprobadas_df)/TOTAL_MATERIAS)
             
-            st.markdown("#### ⚔️ MISIONES EN CURSO (Tocar para Aprobar):")
+            st.markdown("#### ⚔️ MATERIAS EN CURSO:")
             for i, materia in enumerate(cursando_df["Materia"]):
-                # Cada materia es un botón que activa un modal (expander)
                 if st.button(f"✅ {materia}", key=f"mision_{i}"):
                     st.session_state[f"aprobar_{materia}"] = True
                 
                 if st.session_state.get(f"aprobar_{materia}", False):
-                    with st.container():
-                        st.info(f"Finalizando misión: {materia}")
-                        nota_input = st.number_input(f"Nota para {materia}:", 4, 10, 7, key=f"nota_{i}")
-                        c1, c2 = st.columns(2)
-                        if c1.button("🎖️ GUARDAR NOTA", key=f"save_{i}"):
+                    with st.form(key=f"form_{i}"):
+                        nota_input = st.number_input(f"Nota de examen:", 4, 10, 7)
+                        if st.form_submit_button("🎖️ REGISTRAR VICTORIA"):
                             df.loc[(df["Nombre"] == usuario) & (df["Materia"] == materia), "Estado"] = "Aprobada"
                             df.loc[(df["Nombre"] == usuario) & (df["Materia"] == materia), "Nota"] = nota_input
                             conn.update(worksheet=0, data=df)
                             st.session_state[f"aprobar_{materia}"] = False
-                            st.success("¡Misión Cumplida!"); st.rerun()
-                        if c2.button("❌ CANCELAR", key=f"cancel_{i}"):
-                            st.session_state[f"aprobar_{materia}"] = False; st.rerun()
-
-        # --- GESTIÓN DE NUEVAS MATERIAS ---
-        st.markdown("---")
-        with st.expander("➕ INICIAR NUEVA MISIÓN"):
-            ap_nombres = aprobadas_df["Materia"].tolist()
-            cur_nombres = cursando_df["Materia"].tolist()
-            disponibles = [m for m, i in PLAN_ESTUDIOS.items() if m not in ap_nombres and m not in cur_nombres and all(c in ap_nombres for c in i["correlativas"])]
-            materia_nueva = st.selectbox("Seleccionar:", ["--"] + disponibles)
-            if st.button("🚀 EMPEZAR CURSADA") and materia_nueva != "--":
-                new_row = pd.DataFrame([{"Nombre": usuario, "Materia": materia_nueva, "Estado": "Cursando", "Nota": "" }])
-                updated_df = pd.concat([df, new_row], ignore_index=True)
-                conn.update(worksheet=0, data=updated_df)
-                st.rerun()
+                            st.rerun()
 
     elif st.session_state.menu == "Historial":
         st.header("✅ REGISTRO DE COMBATE")
-        # Mostrar las que no tienen nota resaltadas
-        pendientes_nota = mis_datos[(mis_datos["Estado"] == "Aprobada") & (pd.to_numeric(mis_datos["Nota"], errors='coerce').isna())]
-        if not pendientes_nota.empty:
-            st.warning("Hay materias aprobadas sin nota. ¡Cargalas para ver tu promedio real!")
         st.dataframe(mis_datos[["Materia", "Estado", "Nota"]].sort_values("Estado"), use_container_width=True, hide_index=True)
 
     elif st.session_state.menu == "Proximas":
@@ -191,7 +158,6 @@ def main():
 
     elif st.session_state.menu == "Grupo":
         st.header("👥 RECUENTO DE TROPAS")
-        # Gráfico de ranking por cantidad y promedio
         ranking = df[df["Estado"] == "Aprobada"].groupby("Nombre")["Materia"].count().sort_values(ascending=False)
         st.bar_chart(ranking)
 
