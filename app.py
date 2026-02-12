@@ -11,32 +11,34 @@ st.markdown("""
     @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
     .stApp { background-color: #0b0d11; color: #e0e0e0; }
     
+    /* Contenedor de misiones */
     .mission-card {
         background: linear-gradient(135deg, #1a1c23 0%, #0d0e12 100%);
         border: 2px solid #444; border-left: 5px solid #ff4b4b;
-        padding: 12px; border-radius: 8px; margin-bottom: 10px; box-shadow: 3px 3px 0px #000;
-    }
-    
-    .avatar-frame {
-        text-align: center; max-width: 160px; margin: 0 auto;
+        padding: 15px; border-radius: 8px; margin-bottom: 10px;
     }
     
     .retro-font { font-family: 'Press Start 2P', cursive; color: #f1c40f; text-shadow: 2px 2px #000; }
-    .hp-bar-text { font-family: 'Press Start 2P', cursive; font-size: 9px; color: #ff4b4b; }
+    .hp-bar-text { font-family: 'Press Start 2P', cursive; font-size: 10px; color: #ff4b4b; }
     
-    /* KPI de materias faltantes */
-    .missing-kpi {
-        color: #ff4b4b; font-family: 'Press Start 2P', cursive; font-size: 10px;
-        background: rgba(255, 75, 75, 0.1); padding: 5px; border-radius: 5px; display: inline-block;
+    /* KPI Materias Faltantes */
+    .missing-badge {
+        background-color: #ff4b4b; color: white; font-family: 'Press Start 2P', cursive;
+        font-size: 12px; padding: 8px; border-radius: 4px; text-align: center; margin: 10px 0;
     }
 
-    [data-testid="stMetricValue"] { font-family: 'Press Start 2P', cursive; font-size: 20px !important; color: #2ecc71 !important; }
-    
-    /* Botones de navegación fijos para móvil */
+    /* Estilo de botones frontales */
     .stButton>button {
-        font-family: 'Press Start 2P', cursive; font-size: 9px !important;
+        font-family: 'Press Start 2P', cursive; font-size: 10px !important;
         background-color: #1e1e26 !important; border: 2px solid #444 !important;
+        width: 100%; height: 50px;
     }
+    
+    [data-testid="stMetricValue"] { font-family: 'Press Start 2P', cursive; font-size: 24px !important; color: #2ecc71 !important; }
+    
+    /* Esconder el sidebar de Streamlit por completo */
+    [data-testid="sidebarSelfHosted"] { display: none; }
+    section[data-testid="stSidebar"] { display: none; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -109,71 +111,72 @@ def main():
         df.columns = [str(c).strip().capitalize() for c in df.columns]
         df["Nombre"] = df["Nombre"].replace(["Facu Uriarte", "Facundo Uriarte"], "Facu").replace(["Juli la mas genia"], "Juli")
     except Exception:
-        st.error("Error de conexión.")
+        st.error("Error de conexión con el Excel.")
         return
 
-    # BARRA LATERAL REDISEÑADA: Sin desplegable engorroso
-    with st.sidebar:
-        st.markdown("<h1 class='retro-font' style='font-size:16px;'>CIRCULO ROJO</h1>", unsafe_allow_html=True)
-        usuario = st.selectbox("👤 SOLDADO:", ["Seleccionar..."] + sorted(list(df["Nombre"].unique())))
-        
-        st.markdown("---")
-        # Cuadrícula de navegación rápida
-        nav_col1, nav_col2 = st.columns(2)
-        with nav_col1:
-            if st.button("🏠 INICIO", use_container_width=True): st.session_state.menu = "Inicio"; st.rerun()
-            if st.button("📝 PRÓXIMAS", use_container_width=True): st.session_state.menu = "Proximas"; st.rerun()
-        with nav_col2:
-            if st.button("✅ HISTOR.", use_container_width=True): st.session_state.menu = "Historial"; st.rerun()
-            if st.button("👥 GRUPO", use_container_width=True): st.session_state.menu = "Grupo"; st.rerun()
-        
-        # Accesos directos siempre visibles abajo a la izquierda
-        st.markdown("<br><br><br>", unsafe_allow_html=True)
-        st.markdown("<p class='hp-bar-text'>ENLACES RÁPIDOS:</p>", unsafe_allow_html=True)
-        st.link_button("📚 DRIVE", "https://google.com", use_container_width=True)
-        st.link_button("🏫 CAMPUS", "https://campus.unla.edu.ar/", use_container_width=True)
-        st.link_button("🏛️ SIU", "https://guarani.unla.edu.ar/unla/", use_container_width=True)
-
+    # --- CABECERA (Fuera del sidebar) ---
+    st.markdown("<h1 class='retro-font' style='text-align:center; font-size:24px;'>SQUAD COMMAND</h1>", unsafe_allow_html=True)
+    
+    # Selector de usuario arriba
+    usuarios = sorted(list(df["Nombre"].unique()))
+    usuario = st.selectbox("👤 SOLDADO EN CAMPO:", ["Seleccionar..."] + usuarios, label_visibility="collapsed")
+    
     if usuario == "Seleccionar...":
-        st.title("SQUAD COMMAND - UNLa")
+        st.info("Elegí un soldado para ver su reporte.")
         return
 
+    # --- NAVEGACIÓN FRONTAL ---
+    nav_cols = st.columns(4)
+    with nav_cols[0]:
+        if st.button("🏠 INICIO"): st.session_state.menu = "Inicio"; st.rerun()
+    with nav_cols[1]:
+        if st.button("📝 PRÓX."): st.session_state.menu = "Proximas"; st.rerun()
+    with nav_cols[2]:
+        if st.button("✅ HIST."): st.session_state.menu = "Historial"; st.rerun()
+    with nav_cols[3]:
+        if st.button("👥 GRUPO"): st.session_state.menu = "Grupo"; st.rerun()
+
+    st.markdown("---")
+
+    # Lógica de datos
     mis_datos = df[df["Nombre"] == usuario]
     aprobadas = mis_datos[mis_datos["Estado"].str.strip().str.capitalize() == "Aprobada"]
     cursando = mis_datos[mis_datos["Estado"].str.strip().str.capitalize() == "Cursando"]
     n_aprobadas = len(aprobadas)
     faltantes = TOTAL_MATERIAS - n_aprobadas
 
+    # --- CONTENIDO SEGÚN MENÚ ---
     if st.session_state.menu == "Inicio":
         col_av, col_cur = st.columns([1, 2])
         
         with col_av:
             img_path, lvl_actual = get_avatar_slug(usuario, n_aprobadas)
             armas = ["Pistola", "HMG", "Shotgun", "TANK MODE"]
-            st.markdown('<div class="avatar-frame">', unsafe_allow_html=True)
-            st.markdown(f'<p class="hp-bar-text">GEAR: {armas[lvl_actual-1]}</p>', unsafe_allow_html=True)
-            st.image(img_path, width=100)
-            st.markdown(f'<p class="retro-font" style="font-size:12px; margin-top:5px;">{usuario.upper()}</p>', unsafe_allow_html=True)
-            st.markdown(f'<p class="hp-bar-text" style="color:#2ecc71;">LVL: {n_aprobadas}</p>', unsafe_allow_html=True)
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown(f"<p class='hp-bar-text' style='text-align:center;'>GEAR: {armas[lvl_actual-1]}</p>", unsafe_allow_html=True)
+            st.image(img_path, width=150)
+            st.markdown(f"<p class='retro-font' style='text-align:center; font-size:16px;'>{usuario.upper()}</p>", unsafe_allow_html=True)
+            st.markdown(f"<p class='hp-bar-text' style='text-align:center; color:#2ecc71;'>LVL: {n_aprobadas}</p>", unsafe_allow_html=True)
             
-            # Sección de equipo/humor recuperada
-            st.markdown("---")
-            st.markdown("<p class='hp-bar-text'>📜 INVENTARIO:</p>", unsafe_allow_html=True)
-            st.write("• Laptop Gamer (Cansada)")
-            st.write("• Café Frío x2")
-            st.write("• Ganas de Recibirse")
+            # Botones de links rápidos aquí también para que no se pierdan
+            st.markdown("<br>", unsafe_allow_html=True)
+            st.link_button("📂 DRIVE", "https://google.com", use_container_width=True)
+            st.link_button("🏛️ SIU", "https://guarani.unla.edu.ar/unla/", use_container_width=True)
         
         with col_cur:
-            st.markdown("<p class='retro-font' style='font-size:11px;'>📊 AVANCE DE CARRERA</p>", unsafe_allow_html=True)
-            st.metric("PROGRESO", f"{int((n_aprobadas/TOTAL_MATERIAS)*100)}%")
-            # KPI RECUPERADO: Materias faltantes
-            st.markdown(f'<p class="missing-kpi">⬆️ {faltantes} MATERIAS FALTANTES</p>', unsafe_allow_html=True)
+            st.markdown("<p class='retro-font' style='font-size:12px;'>📊 AVANCE DE CARRERA</p>", unsafe_allow_html=True)
+            st.metric("COMPLETADO", f"{int((n_aprobadas/TOTAL_MATERIAS)*100)}%")
+            
+            # KPI REINSTALADO
+            st.markdown(f'<div class="missing-badge">⬆️ {faltantes} MATERIAS FALTANTES</div>', unsafe_allow_html=True)
+            
             st.progress(n_aprobadas/TOTAL_MATERIAS)
             
-            st.markdown("#### ⚔️ MATERIAS EN CURSO:")
-            for m in cursando["Materia"]:
-                st.markdown(f'<div class="mission-card"><b>{m}</b></div>', unsafe_allow_html=True)
+            st.markdown("<br>#### ⚔️ MATERIAS EN CURSO:", unsafe_allow_html=True)
+            if not cursando.empty:
+                for m in cursando["Materia"]:
+                    st.markdown(f'<div class="mission-card"><b>{m}</b></div>', unsafe_allow_html=True)
+            else:
+                st.write("Sin misiones activas.")
 
     elif st.session_state.menu == "Historial":
         st.header("✅ REGISTRO DE COMBATE")
