@@ -171,7 +171,7 @@ def main():
             
             st.progress(n_aprobadas/TOTAL_MATERIAS)
             
-            st.markdown("<br>#### ⚔️ MATERIAS EN CURSO:", unsafe_allow_html=True)
+            st.markdown("<br> ⚔️ MATERIAS EN CURSO:", unsafe_allow_html=True)
             if not cursando.empty:
                 for m in cursando["Materia"]:
                     st.markdown(f'<div class="mission-card"><b>{m}</b></div>', unsafe_allow_html=True)
@@ -195,3 +195,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
