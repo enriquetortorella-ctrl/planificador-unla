@@ -10,36 +10,29 @@ st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
     .stApp { background-color: #0b0d11; color: #e0e0e0; }
-    
     .mission-card {
         background: linear-gradient(135deg, #1a1c23 0%, #0d0e12 100%);
         border: 2px solid #444; border-left: 5px solid #ff4b4b;
         padding: 15px; border-radius: 8px; margin-bottom: 10px;
     }
-    
     .retro-font { font-family: 'Press Start 2P', cursive; color: #f1c40f; text-shadow: 2px 2px #000; }
     .hp-bar-text { font-family: 'Press Start 2P', cursive; font-size: 10px; color: #ff4b4b; }
-    
     .missing-badge {
         background-color: #ff4b4b; color: white; font-family: 'Press Start 2P', cursive;
         font-size: 12px; padding: 8px; border-radius: 4px; text-align: center; margin: 10px 0;
     }
-
     .stButton>button {
         font-family: 'Press Start 2P', cursive; font-size: 10px !important;
         background-color: #1e1e26 !important; border: 2px solid #444 !important;
         width: 100%; height: 50px;
     }
-    
     [data-testid="stMetricValue"] { font-family: 'Press Start 2P', cursive; font-size: 24px !important; color: #2ecc71 !important; }
-    
-    /* Ocultar Sidebar por completo para mejorar navegación móvil */
     [data-testid="sidebarSelfHosted"] { display: none; }
     section[data-testid="stSidebar"] { display: none; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. PLAN DE ESTUDIOS ---
+# --- 2. PLAN DE ESTUDIOS (Completo) ---
 PLAN_ESTUDIOS = {
     "Taller de Producción de Textos": {"anio": 1, "correlativas": []},
     "Introducción a la Matemática": {"anio": 1, "correlativas": []},
@@ -86,41 +79,27 @@ PLAN_ESTUDIOS = {
 
 TOTAL_MATERIAS = 42
 
-# --- 3. FUNCIONES ---
 def get_avatar_slug(usuario, n_aprobadas):
     squad = {"Facu": "Allen", "Ivan": "Trevor", "Maca": "Alisa", "Juli": "Nadia", "Kike": "Marco", "Cristian": "Tarma"}
     char_base = squad.get(usuario, "Marco")
-    if n_aprobadas <= 10: nivel = 1
-    elif n_aprobadas <= 20: nivel = 2
-    elif n_aprobadas <= 30: nivel = 3
-    else: nivel = 4
+    nivel = 1 if n_aprobadas <= 10 else 2 if n_aprobadas <= 20 else 3 if n_aprobadas <= 30 else 4
     path = os.path.join("assets", f"{char_base}_{nivel}.gif")
     if os.path.exists(path): return path, nivel
     return f"https://api.dicebear.com/7.x/pixel-art/svg?seed={usuario}", 1
 
-# --- 4. MAIN ---
 def main():
     if "menu" not in st.session_state: st.session_state.menu = "Inicio"
     
-    try:
-        conn = st.connection("gsheets", type=GSheetsConnection)
-        df = conn.read(worksheet=0, ttl=0)
-        df.columns = [str(c).strip().capitalize() for c in df.columns]
-        df["Nombre"] = df["Nombre"].replace(["Facu Uriarte", "Facundo Uriarte"], "Facu").replace(["Juli la mas genia"], "Juli")
-    except Exception:
-        st.error("Error de conexión.")
-        return
-
-    st.markdown("<h1 class='retro-font' style='text-align:center; font-size:24px;'>SQUAD COMMAND</h1>", unsafe_allow_html=True)
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    df = conn.read(worksheet=0, ttl=0)
+    df.columns = [str(c).strip().capitalize() for c in df.columns]
     
+    st.markdown("<h1 class='retro-font' style='text-align:center; font-size:24px;'>SQUAD COMMAND</h1>", unsafe_allow_html=True)
     usuarios = sorted(list(df["Nombre"].unique()))
     usuario = st.selectbox("👤 SOLDADO:", ["Seleccionar..."] + usuarios, label_visibility="collapsed")
     
-    if usuario == "Seleccionar...":
-        st.info("Elegí un soldado para iniciar.")
-        return
+    if usuario == "Seleccionar...": return
 
-    # NAVEGACIÓN FRONTAL
     nav_cols = st.columns(4)
     with nav_cols[0]:
         if st.button("🏠 INICIO"): st.session_state.menu = "Inicio"; st.rerun()
@@ -134,31 +113,52 @@ def main():
     st.markdown("---")
 
     mis_datos = df[df["Nombre"] == usuario]
-    aprobadas = mis_datos[mis_datos["Estado"].str.strip().str.capitalize() == "Aprobada"]
-    cursando = mis_datos[mis_datos["Estado"].str.strip().str.capitalize() == "Cursando"]
-    n_aprobadas = len(aprobadas)
-    faltantes = TOTAL_MATERIAS - n_aprobadas
+    aprobadas_df = mis_datos[mis_datos["Estado"].str.strip().str.capitalize() == "Aprobada"]
+    cursando_df = mis_datos[mis_datos["Estado"].str.strip().str.capitalize() == "Cursando"]
+    ap_nombres = aprobadas_df["Materia"].tolist()
+    n_aprobadas = len(aprobadas_df)
 
     if st.session_state.menu == "Inicio":
         col_av, col_cur = st.columns([1, 2])
         with col_av:
             img_path, lvl_actual = get_avatar_slug(usuario, n_aprobadas)
-            armas = ["Pistola", "HMG", "Shotgun", "TANK MODE"]
-            st.markdown(f"<p class='hp-bar-text' style='text-align:center;'>GEAR: {armas[lvl_actual-1]}</p>", unsafe_allow_html=True)
             st.image(img_path, width=150)
-            st.markdown(f"<p class='retro-font' style='text-align:center; font-size:16px;'>{usuario.upper()}</p>", unsafe_allow_html=True)
-            st.markdown(f"<p class='hp-bar-text' style='text-align:center; color:#2ecc71;'>LVL: {n_aprobadas}</p>", unsafe_allow_html=True)
-            st.markdown("<br>", unsafe_allow_html=True)
+            st.markdown(f"<p class='retro-font' style='text-align:center;'>{usuario.upper()} LVL {n_aprobadas}</p>", unsafe_allow_html=True)
             st.link_button("📂 DRIVE", "https://google.com", use_container_width=True)
             st.link_button("🏛️ SIU", "https://guarani.unla.edu.ar/unla/", use_container_width=True)
         
         with col_cur:
             st.metric("PROGRESO", f"{int((n_aprobadas/TOTAL_MATERIAS)*100)}%")
-            st.markdown(f'<div class="missing-badge">⬆️ {faltantes} MATERIAS FALTANTES</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="missing-badge">⬆️ {TOTAL_MATERIAS - n_aprobadas} MATERIAS FALTANTES</div>', unsafe_allow_html=True)
             st.progress(n_aprobadas/TOTAL_MATERIAS)
-            st.markdown("<br>⚔️ MATERIAS EN CURSO:", unsafe_allow_html=True)
-            for m in cursando["Materia"]:
+            st.markdown("#### ⚔️ MATERIAS EN CURSO:")
+            for m in cursando_df["Materia"]:
                 st.markdown(f'<div class="mission-card"><b>{m}</b></div>', unsafe_allow_html=True)
+
+        # --- FORMULARIO DE GESTIÓN (REINCORPORADO) ---
+        st.markdown("---")
+        st.markdown("<p class='retro-font' style='font-size:12px;'>📋 MESA DE ENTRADAS</p>", unsafe_allow_html=True)
+        
+        with st.expander("MODIFICAR MIS ESTADOS"):
+            # 1. Anotarse a nuevas
+            disponibles = [m for m, i in PLAN_ESTUDIOS.items() if m not in ap_nombres and m not in cursando_df["Materia"].tolist() and all(c in ap_nombres for c in i["correlativas"])]
+            materia_nueva = st.selectbox("Seleccionar nueva misión:", ["--"] + disponibles)
+            if st.button("➕ ANOTARME A ESTA MATERIA") and materia_nueva != "--":
+                new_row = pd.DataFrame([{"Nombre": usuario, "Materia": materia_nueva, "Estado": "Cursando", "Nota": "" }])
+                updated_df = pd.concat([df, new_row], ignore_index=True)
+                conn.update(worksheet=0, data=updated_df)
+                st.success(f"Registrado en {materia_nueva}. ¡A la carga!"); st.rerun()
+
+            # 2. Aprobar las que estoy cursando
+            if not cursando_df.empty:
+                st.markdown("---")
+                materia_a_aprobar = st.selectbox("Marcar como completada:", ["--"] + cursando_df["Materia"].tolist())
+                nota = st.number_input("Nota final:", 4, 10, 7)
+                if st.button("🎖️ ¡MISIÓN CUMPLIDA! (APROBAR)") and materia_a_aprobar != "--":
+                    df.loc[(df["Nombre"] == usuario) & (df["Materia"] == materia_a_aprobar), "Estado"] = "Aprobada"
+                    df.loc[(df["Nombre"] == usuario) & (df["Materia"] == materia_a_aprobar), "Nota"] = nota
+                    conn.update(worksheet=0, data=df)
+                    st.balloons(); st.success(f"¡{materia_a_aprobar} superada!"); st.rerun()
 
     elif st.session_state.menu == "Historial":
         st.header("✅ REGISTRO DE COMBATE")
@@ -166,26 +166,18 @@ def main():
 
     elif st.session_state.menu == "Proximas":
         st.header("📝 PRÓXIMOS OBJETIVOS")
-        ap_nombres = aprobadas["Materia"].tolist()
         disp = [m for m, i in PLAN_ESTUDIOS.items() if m not in ap_nombres and all(c in ap_nombres for c in i["correlativas"])]
         for d in disp: st.success(f"🔓 {d}")
 
     elif st.session_state.menu == "Grupo":
         st.header("👥 RECUENTO DE TROPAS")
-        # Ranking visual
         ranking = df[df["Estado"].str.strip().str.capitalize() == "Aprobada"].groupby("Nombre")["Materia"].count().sort_values(ascending=False)
         st.bar_chart(ranking)
-        
         st.markdown("---")
-        st.subheader("📋 DESPLIEGUE POR MATERIA")
-        # Cuadro de cursadas grupales recuperado
         cur_squad = df[df["Estado"].str.strip().str.capitalize() == "Cursando"]
         if not cur_squad.empty:
             tabla = cur_squad.groupby("Materia")["Nombre"].agg(['count', lambda x: ', '.join(x)]).reset_index()
             tabla.columns = ["MATERIA", "SOLDADOS", "INTEGRANTES"]
             st.dataframe(tabla.sort_values("SOLDADOS", ascending=False), use_container_width=True, hide_index=True)
-        else:
-            st.info("No hay misiones grupales activas.")
 
-if __name__ == "__main__":
-    main()
+if __name__ == "__main__": main()
