@@ -142,7 +142,7 @@ def main():
             st.image(img_path, width=150)
             st.markdown(f"<p class='retro-font' style='text-align:center; font-size:14px;'>{usuario.upper()}</p>", unsafe_allow_html=True)
             st.metric("PROMEDIO", f"{promedio:.2f}")
-            st.link_button("📂 DRIVE", "https://google.com", use_container_width=True)
+            st.link_button("📂 DRIVE", "https://drive.google.com/drive/folders/1C7LQskupjeW2sO2wnD_upyYnuxip4oqs", use_container_width=True)
             st.link_button("🏛️ SIU", "https://guarani.unla.edu.ar/unla/", use_container_width=True)
         
         with col_cur:
@@ -209,3 +209,4 @@ def main():
         st.bar_chart(ranking)
 
 if __name__ == "__main__": main()
+
