@@ -26,14 +26,14 @@ st.markdown("""
     .hp-bar-text { font-family: 'Press Start 2P', cursive; font-size: 10px; color: #ff4b4b; }
     .missing-badge {
         background-color: #ff4b4b; color: white; font-family: 'Press Start 2P', cursive;
-        font-size: 10px; padding: 8px; border-radius: 4px; text-align: center; margin: 5px 0;
+        font-size: 10px; padding: 8px; border-radius: 4px; text-align: center; margin: 10px 0;
     }
     [data-testid="stMetricValue"] { font-family: 'Press Start 2P', cursive; font-size: 20px !important; }
     [data-testid="sidebarSelfHosted"], section[data-testid="stSidebar"] { display: none; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. PLAN DE ESTUDIOS ---
+# --- 2. PLAN DE ESTUDIOS (Completo) ---
 PLAN_ESTUDIOS = {
     "Taller de Producción de Textos": {"correlativas": []},
     "Introducción a la Matemática": {"correlativas": []},
@@ -80,6 +80,17 @@ PLAN_ESTUDIOS = {
 
 TOTAL_MATERIAS = 42
 
+def get_avatar_slug(usuario, n_aprobadas):
+    squad = {"Facu": "Allen", "Ivan": "Trevor", "Maca": "Alisa", "Juli": "Nadia", "Kike": "Marco", "Cristian": "Tarma"}
+    char_base = squad.get(usuario, "Marco")
+    if n_aprobadas <= 10: nivel = 1
+    elif n_aprobadas <= 20: nivel = 2
+    elif n_aprobadas <= 30: nivel = 3
+    else: nivel = 4
+    path = os.path.join("assets", f"{char_base}_{nivel}.gif")
+    if os.path.exists(path): return path, nivel
+    return f"https://api.dicebear.com/7.x/pixel-art/svg?seed={usuario}", nivel
+
 def main():
     if "menu" not in st.session_state: st.session_state.menu = "Inicio"
     
@@ -87,9 +98,8 @@ def main():
     df = conn.read(worksheet=0, ttl=0)
     df.columns = [str(c).strip().capitalize() for c in df.columns]
     
-    # --- PARCHE DE SEGURIDAD PARA EL KEYERROR ---
     if "Nota" not in df.columns:
-        df["Nota"] = "" # Creamos la columna si no existe para que no explote
+        df["Nota"] = ""
     
     st.markdown("<h1 class='retro-font' style='text-align:center; font-size:24px;'>SQUAD COMMAND</h1>", unsafe_allow_html=True)
     usuarios = sorted(list(df["Nombre"].unique()))
@@ -112,24 +122,26 @@ def main():
     mis_datos = df[df["Nombre"] == usuario].copy()
     aprobadas_df = mis_datos[mis_datos["Estado"].str.strip().str.capitalize() == "Aprobada"]
     cursando_df = mis_datos[mis_datos["Estado"].str.strip().str.capitalize() == "Cursando"]
+    n_aprobadas = len(aprobadas_df)
     
-    # Cálculo de Promedio seguro
     notas_validas = pd.to_numeric(aprobadas_df["Nota"], errors='coerce').dropna()
     promedio = notas_validas.mean() if not notas_validas.empty else 0.0
 
     if st.session_state.menu == "Inicio":
         col_av, col_cur = st.columns([1, 2])
         with col_av:
-            st.image(f"https://api.dicebear.com/7.x/pixel-art/svg?seed={usuario}", width=100)
-            st.markdown(f"<p class='retro-font' style='font-size:14px;'>{usuario.upper()}</p>", unsafe_allow_html=True)
+            img_path, lvl_visual = get_avatar_slug(usuario, n_aprobadas)
+            st.image(img_path, width=150)
+            st.markdown(f"<p class='retro-font' style='text-align:center; font-size:14px;'>{usuario.upper()}</p>", unsafe_allow_html=True)
+            st.markdown(f"<p class='hp-bar-text' style='text-align:center;'>LVL: {n_aprobadas}</p>", unsafe_allow_html=True)
             st.metric("PROMEDIO", f"{promedio:.2f}")
             st.link_button("📂 DRIVE", "https://google.com", use_container_width=True)
             st.link_button("🏛️ SIU", "https://guarani.unla.edu.ar/unla/", use_container_width=True)
         
         with col_cur:
-            st.metric("PROGRESO", f"{int((len(aprobadas_df)/TOTAL_MATERIAS)*100)}%")
-            st.markdown(f'<div class="missing-badge">FALTAN: {TOTAL_MATERIAS - len(aprobadas_df)}</div>', unsafe_allow_html=True)
-            st.progress(len(aprobadas_df)/TOTAL_MATERIAS)
+            st.metric("PROGRESO", f"{int((n_aprobadas/TOTAL_MATERIAS)*100)}%")
+            st.markdown(f'<div class="missing-badge">FALTAN: {TOTAL_MATERIAS - n_aprobadas} MATERIAS</div>', unsafe_allow_html=True)
+            st.progress(n_aprobadas/TOTAL_MATERIAS)
             
             st.markdown("#### ⚔️ MATERIAS EN CURSO:")
             for i, materia in enumerate(cursando_df["Materia"]):
@@ -138,7 +150,7 @@ def main():
                 
                 if st.session_state.get(f"aprobar_{materia}", False):
                     with st.form(key=f"form_{i}"):
-                        nota_input = st.number_input(f"Nota de examen:", 4, 10, 7)
+                        nota_input = st.number_input(f"Nota final:", 4, 10, 7)
                         if st.form_submit_button("🎖️ REGISTRAR VICTORIA"):
                             df.loc[(df["Nombre"] == usuario) & (df["Materia"] == materia), "Estado"] = "Aprobada"
                             df.loc[(df["Nombre"] == usuario) & (df["Materia"] == materia), "Nota"] = nota_input
@@ -148,6 +160,23 @@ def main():
 
     elif st.session_state.menu == "Historial":
         st.header("✅ REGISTRO DE COMBATE")
+        
+        # --- SECCIÓN NUEVA: CARGA DE NOTAS PENDIENTES ---
+        pendientes_nota = aprobadas_df[pd.to_numeric(aprobadas_df["Nota"], errors='coerce').isna()]
+        
+        if not pendientes_nota.empty:
+            st.warning("⚠️ Tienes materias aprobadas sin nota cargada:")
+            for j, row in pendientes_nota.iterrows():
+                mat_p = row["Materia"]
+                with st.expander(f"Cargar nota para: {mat_p}"):
+                    with st.form(key=f"pnd_{j}"):
+                        nota_p = st.number_input("Nota:", 4, 10, 7)
+                        if st.form_submit_button("💾 GUARDAR NOTA"):
+                            df.loc[(df["Nombre"] == usuario) & (df["Materia"] == mat_p), "Nota"] = nota_p
+                            conn.update(worksheet=0, data=df)
+                            st.success("Nota actualizada!"); st.rerun()
+        
+        st.markdown("---")
         st.dataframe(mis_datos[["Materia", "Estado", "Nota"]].sort_values("Estado"), use_container_width=True, hide_index=True)
 
     elif st.session_state.menu == "Proximas":
