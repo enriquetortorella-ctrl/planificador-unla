@@ -21,7 +21,7 @@ st.markdown("""
         margin-bottom: 5px !important;
     }
     .retro-font { font-family: 'Press Start 2P', cursive; color: #f1c40f; text-shadow: 2px 2px #000; }
-    .hp-bar-text { font-family: 'Press Start 2P', cursive; font-size: 10px; color: #ff4b4b; }
+    .hp-bar-text { font-family: 'Press Start 2P', cursive; font-size: 10px; color: #ff4b4b; margin-top: 5px; }
     .cuatri-header { 
         font-family: 'Press Start 2P', cursive; 
         color: #3498db; 
@@ -41,34 +41,33 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. PLAN DE ESTUDIOS 2026 ---
-# Usamos 'periodo_original' para saber si la materia "nace" en el 1° o 2° cuatrimestre
+# --- 2. PLAN DE ESTUDIOS ---
 PLAN_ESTUDIOS = {
-    "Introducción a Economía Empresarial": {"is_tech": True, "periodo_original": "1° Cuat.", "correlativas": []},
-    "Historia Económica Contemporánea": {"is_tech": True, "periodo_original": "1° Cuat.", "correlativas": []},
-    "Contabilidad": {"is_tech": True, "periodo_original": "1° Cuat.", "correlativas": []},
-    "Matemática I": {"is_tech": True, "periodo_original": "1° Cuat.", "correlativas": []},
-    "Taller de Comunicación y Producción de Textos": {"is_tech": True, "periodo_original": "1° Cuat.", "correlativas": []},
-    "Empresa, Economía y Sociedad": {"is_tech": True, "periodo_original": "2° Cuat.", "correlativas": ["Historia Económica Contemporánea"]},
-    "Organización y Gestión": {"is_tech": True, "periodo_original": "2° Cuat.", "correlativas": []},
-    "Matemática II": {"is_tech": True, "periodo_original": "2° Cuat.", "correlativas": ["Matemática I"]},
-    "Derecho Comercial": {"is_tech": True, "periodo_original": "2° Cuat.", "correlativas": ["Organización y Gestión"]},
-    "Seminario de Justicia y Derechos Humanos": {"is_tech": True, "periodo_original": "2° Cuat.", "correlativas": []},
-    "Microeconomía I": {"is_tech": True, "periodo_original": "1° Cuat.", "correlativas": ["Empresa, Economía y Sociedad", "Matemática I"]},
-    "Cálculo Financiero": {"is_tech": True, "periodo_original": "1° Cuat.", "correlativas": ["Matemática II"]},
-    "Comercialización": {"is_tech": True, "periodo_original": "1° Cuat.", "correlativas": ["Organización y Gestión"]},
-    "Costos Empresariales": {"is_tech": True, "periodo_original": "1° Cuat.", "correlativas": ["Contabilidad", "Matemática II"]},
-    "Seminario de Pensamiento Nacional Latinoamericano": {"is_tech": True, "periodo_original": "1° Cuat.", "correlativas": []},
-    "Macroeconomía": {"is_tech": True, "periodo_original": "2° Cuat.", "correlativas": ["Microeconomía I"]},
-    "Estadística": {"is_tech": True, "periodo_original": "2° Cuat.", "correlativas": ["Matemática II"]},
-    "Sistemas de Información": {"is_tech": True, "periodo_original": "2° Cuat.", "correlativas": ["Contabilidad"]},
-    "Administración Financiera": {"is_tech": True, "periodo_original": "2° Cuat.", "correlativas": ["Cálculo Financiero"]},
-    "Derecho del Trabajo y la Seguridad Social": {"is_tech": True, "periodo_original": "2° Cuat.", "correlativas": ["Derecho Comercial"]},
-    "Microeconomía II": {"is_tech": True, "periodo_original": "1° Cuat.", "correlativas": ["Microeconomía I"]},
-    "Investigación de Operaciones": {"is_tech": True, "periodo_original": "1° Cuat.", "correlativas": ["Estadística"]},
-    "Principios de Tributación": {"is_tech": True, "periodo_original": "1° Cuat.", "correlativas": ["Derecho Comercial", "Costos Empresariales"]},
-    "Seminario de Integración I": {"is_tech": True, "periodo_original": "Anual", "correlativas": ["Comercialización", "Administración Financiera"]},
-    "Taller de Práctica Preprofesional": {"is_tech": True, "periodo_original": "2° Cuat.", "correlativas": ["Seminario de Integración I"]}
+    "Introducción a Economía Empresarial": {"periodo_original": "1° Cuat.", "correlativas": []},
+    "Historia Económica Contemporánea": {"periodo_original": "1° Cuat.", "correlativas": []},
+    "Contabilidad": {"periodo_original": "1° Cuat.", "correlativas": []},
+    "Matemática I": {"periodo_original": "1° Cuat.", "correlativas": []},
+    "Taller de Comunicación y Producción de Textos": {"periodo_original": "1° Cuat.", "correlativas": []},
+    "Empresa, Economía y Sociedad": {"periodo_original": "2° Cuat.", "correlativas": ["Historia Económica Contemporánea"]},
+    "Organización y Gestión": {"periodo_original": "2° Cuat.", "correlativas": []},
+    "Matemática II": {"periodo_original": "2° Cuat.", "correlativas": ["Matemática I"]},
+    "Derecho Comercial": {"periodo_original": "2° Cuat.", "correlativas": ["Organización y Gestión"]},
+    "Seminario de Justicia y Derechos Humanos": {"periodo_original": "2° Cuat.", "correlativas": []},
+    "Microeconomía I": {"periodo_original": "1° Cuat.", "correlativas": ["Empresa, Economía y Sociedad", "Matemática I"]},
+    "Cálculo Financiero": {"periodo_original": "1° Cuat.", "correlativas": ["Matemática II"]},
+    "Comercialización": {"periodo_original": "1° Cuat.", "correlativas": ["Organización y Gestión"]},
+    "Costos Empresariales": {"periodo_original": "1° Cuat.", "correlativas": ["Contabilidad", "Matemática II"]},
+    "Seminario de Pensamiento Nacional Latinoamericano": {"periodo_original": "1° Cuat.", "correlativas": []},
+    "Macroeconomía": {"periodo_original": "2° Cuat.", "correlativas": ["Microeconomía I"]},
+    "Estadística": {"periodo_original": "2° Cuat.", "correlativas": ["Matemática II"]},
+    "Sistemas de Información": {"periodo_original": "2° Cuat.", "correlativas": ["Contabilidad"]},
+    "Administración Financiera": {"periodo_original": "2° Cuat.", "correlativas": ["Cálculo Financiero"]},
+    "Derecho del Trabajo y la Seguridad Social": {"periodo_original": "2° Cuat.", "correlativas": ["Derecho Comercial"]},
+    "Microeconomía II": {"periodo_original": "1° Cuat.", "correlativas": ["Microeconomía I"]},
+    "Investigación de Operaciones": {"periodo_original": "1° Cuat.", "correlativas": ["Estadística"]},
+    "Principios de Tributación": {"periodo_original": "1° Cuat.", "correlativas": ["Derecho Comercial", "Costos Empresariales"]},
+    "Seminario de Integración I": {"periodo_original": "Anual", "correlativas": ["Comercialización", "Administración Financiera"]},
+    "Taller de Práctica Preprofesional": {"periodo_original": "2° Cuat.", "correlativas": ["Seminario de Integración I"]}
 }
 
 TOTAL_LICENCIATURA = 40
@@ -106,18 +105,27 @@ def main():
     mis_datos = df[df["Nombre"] == usuario].copy()
     aprobadas_df = mis_datos[mis_datos["Estado"].str.strip().str.capitalize() == "Aprobada"]
     cursando_df = mis_datos[mis_datos["Estado"].str.strip().str.capitalize() == "Cursando"]
+    
+    promedio = pd.to_numeric(aprobadas_df["Nota"], errors='coerce').dropna().mean() if not aprobadas_df.empty else 0.0
 
-    # --- LÓGICA DE NAVEGACIÓN ---
     if st.session_state.menu == "Inicio":
         col_av, col_cur = st.columns([1, 2])
         with col_av:
             img_path, _ = get_avatar_slug(usuario, len(aprobadas_df))
             st.image(img_path, width=150)
+            st.metric("PROMEDIO", f"{promedio:.2f}")
             st.link_button("📂 DRIVE SQUAD", "https://drive.google.com/drive/folders/1C7LQskupjeW2sO2wnD_upyYnuxip4oqs", use_container_width=True)
             st.link_button("🏛️ SIU GUARANÍ", "https://estudiantes.unla.edu.ar/autogestion3w/acceso", use_container_width=True)
             st.link_button("💻 CAMPUS UNLA", "https://campus.unla.edu.ar/aulas/login/index.php", use_container_width=True)
         
         with col_cur:
+            # --- RECUPERADAS: BARRAS DE PROGRESO ---
+            st.markdown("#### 🏆 OBJETIVOS 2026:")
+            progreso = len(aprobadas_df) / TOTAL_LICENCIATURA
+            st.progress(progreso)
+            st.markdown(f"<p class='hp-bar-text'>PROGRESO TOTAL: {int(progreso*100)}%</p>", unsafe_allow_html=True)
+
+            st.markdown("---")
             st.markdown("#### ⚔️ MATERIAS EN CURSO:")
             for i, row in cursando_df.iterrows():
                 materia = row["Materia"]
@@ -141,7 +149,6 @@ def main():
         st.header("👥 DESPLIEGUE POR CUATRIMESTRE REAL")
         en_curso = df[df["Estado"].str.strip().str.capitalize() == "Cursando"].copy()
         
-        # Función para calcular dónde "cae" la materia según la elección del soldado
         def asignar_periodo_real(row):
             teorico = PLAN_ESTUDIOS.get(row["Materia"], {}).get("periodo_original", "1° Cuat.")
             if row["Cursada"] == "Contracursada":
@@ -150,24 +157,13 @@ def main():
 
         if not en_curso.empty:
             en_curso["PeriodoReal"] = en_curso.apply(asignar_periodo_real, axis=1)
-            
             for periodo in ["1° Cuatrimestre", "2° Cuatrimestre"]:
                 st.markdown(f"<div class='cuatri-header'>{periodo}</div>", unsafe_allow_html=True)
                 materias_del_periodo = en_curso[en_curso["PeriodoReal"] == periodo]
-                
-                if materias_del_periodo.empty:
-                    st.info(f"No hay soldados operando en el {periodo}.")
-                else:
-                    for mat in materias_del_periodo["Materia"].unique():
-                        soldados_data = materias_del_periodo[materias_del_periodo["Materia"] == mat]
-                        lista_nombres = [f"{r['Nombre']} ({r['Cursada']})" for _, r in soldados_data.iterrows()]
-                        
-                        st.markdown(f"""
-                            <div class='materia-card'>
-                                <strong>{mat}</strong><br>
-                                <span style='color: #aaa;'>🎖️ Soldados: {", ".join(lista_nombres)}</span>
-                            </div>
-                        """, unsafe_allow_html=True)
+                for mat in materias_del_periodo["Materia"].unique():
+                    soldados_data = materias_del_periodo[materias_del_periodo["Materia"] == mat]
+                    lista_nombres = [f"{r['Nombre']} ({r['Cursada']})" for _, r in soldados_data.iterrows()]
+                    st.markdown(f"<div class='materia-card'><strong>{mat}</strong><br><span style='color: #aaa;'>🎖️ Soldados: {', '.join(lista_nombres)}</span></div>", unsafe_allow_html=True)
         else:
             st.warning("No hay datos de cursada actual.")
 
@@ -176,7 +172,6 @@ def main():
         ya_registradas = mis_datos["Materia"].tolist()
         aprobadas = aprobadas_df["Materia"].tolist()
         disp = [m for m, i in PLAN_ESTUDIOS.items() if m not in ya_registradas and all(c in aprobadas for c in i["correlativas"])]
-        
         for d in disp:
             c1, c2, c3 = st.columns([2, 1, 1])
             c1.success(f"🔓 **{d}**")
