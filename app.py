@@ -36,7 +36,6 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- 2. PLAN DE ESTUDIOS 2026 (ACTUALIZADO) ---
-# Se marcaron como is_tech: True las materias hasta el 6° cuatrimestre + Práctica
 PLAN_ESTUDIOS = {
     "Introducción a Economía Empresarial": {"is_tech": True, "correlativas": []},
     "Historia Económica Contemporánea": {"is_tech": True, "correlativas": []},
@@ -63,7 +62,6 @@ PLAN_ESTUDIOS = {
     "Principios de Tributación": {"is_tech": True, "correlativas": ["Derecho Comercial", "Costos Empresariales"]},
     "Seminario de Integración I": {"is_tech": True, "correlativas": ["Comercialización", "Administración Financiera"]},
     "Taller de Práctica Preprofesional": {"is_tech": True, "correlativas": ["Seminario de Integración I"]},
-    # Ciclo Superior (Licenciatura)
     "Macroeconomía y Política Económica": {"is_tech": False, "correlativas": ["Macroeconomía"]},
     "Tecnología y Ciencia de Datos": {"is_tech": False, "correlativas": ["Investigación de Operaciones"]},
     "Seminario Optativo 1": {"is_tech": False, "correlativas": []},
@@ -124,9 +122,9 @@ def main():
     mis_datos = df[df["Nombre"] == usuario].copy()
     aprobadas_df = mis_datos[mis_datos["Estado"].str.strip().str.capitalize() == "Aprobada"]
     cursando_df = mis_datos[mis_datos["Estado"].str.strip().str.capitalize() == "Cursando"]
+    ap_nombres = aprobadas_df["Materia"].tolist()
     
     # Lógica de Tecnicatura
-    ap_nombres = aprobadas_df["Materia"].tolist()
     tech_aprobadas = [m for m in ap_nombres if m in PLAN_ESTUDIOS and PLAN_ESTUDIOS[m]["is_tech"]]
     n_tech = len(tech_aprobadas)
     
@@ -146,7 +144,6 @@ def main():
         
         with col_cur:
             st.markdown("#### 🏆 OBJETIVOS 2026:")
-            
             prog_tech = int((n_tech / TOTAL_TECNICATURA) * 100)
             st.markdown(f"<p class='hp-bar-text'>TECNICATURA: {prog_tech}%</p>", unsafe_allow_html=True)
             st.progress(n_tech / TOTAL_TECNICATURA)
@@ -155,11 +152,9 @@ def main():
             st.markdown(f"<p class='hp-bar-text'>LICENCIATURA: {prog_lic}%</p>", unsafe_allow_html=True)
             st.progress(len(aprobadas_df) / TOTAL_LICENCIATURA)
             
-            kpi1, kpi2 = st.columns(2)
-            with kpi1:
-                st.markdown(f'<div class="tech-badge">🎓 TÉCNICO: FALTAN {TOTAL_TECNICATURA - n_tech}</div>', unsafe_allow_html=True)
-            with kpi2:
-                st.markdown(f'<div class="missing-badge">⚔️ LICENCIADO: FALTAN {TOTAL_LICENCIATURA - len(aprobadas_df)}</div>', unsafe_allow_html=True)
+            k1, k2 = st.columns(2)
+            k1.markdown(f'<div class="tech-badge">🎓 TÉCNICO: FALTAN {TOTAL_TECNICATURA - n_tech}</div>', unsafe_allow_html=True)
+            k2.markdown(f'<div class="missing-badge">⚔️ LICENCIADO: FALTAN {TOTAL_LICENCIATURA - len(aprobadas_df)}</div>', unsafe_allow_html=True)
 
             st.markdown("---")
             st.markdown("#### ⚔️ MATERIAS EN CURSO:")
@@ -179,23 +174,29 @@ def main():
 
     elif st.session_state.menu == "Historial":
         st.header("✅ REGISTRO DE COMBATE 2026")
-        pendientes_nota = aprobadas_df[pd.to_numeric(aprobadas_df["Nota"], errors='coerce').isna()]
-        if not pendientes_nota.empty:
-            for j, row in pendientes_nota.iterrows():
-                mat_p = row["Materia"]
-                with st.expander(f"Cargar nota para: {mat_p}"):
-                    with st.form(key=f"pnd_{j}"):
-                        nota_p = st.number_input("Nota:", 4, 10, 7)
-                        if st.form_submit_button("💾 GUARDAR NOTA"):
-                            df.loc[(df["Nombre"] == usuario) & (df["Materia"] == mat_p), "Nota"] = nota_p
-                            conn.update(worksheet=0, data=df)
-                            st.rerun()
         st.dataframe(mis_datos[["Materia", "Estado", "Nota"]].sort_values("Estado"), use_container_width=True, hide_index=True)
 
     elif st.session_state.menu == "Proximas":
         st.header("📝 PRÓXIMOS OBJETIVOS")
-        disp = [m for m, i in PLAN_ESTUDIOS.items() if m not in ap_nombres and all(c in ap_nombres for c in i["correlativas"])]
-        for d in disp: st.success(f"🔓 {d}")
+        # Identificar qué tiene el alumno ya en su registro (aprobada o cursando)
+        materias_en_registro = mis_datos["Materia"].tolist()
+        
+        # Filtrar materias desbloqueadas que NO estén en el registro y correlativas aprobadas
+        disp = [m for m, i in PLAN_ESTUDIOS.items() if m not in materias_en_registro and all(c in ap_nombres for c in i["correlativas"])]
+        
+        if not disp:
+            st.warning("No hay materias desbloqueadas actualmente. ¡Rinde finales para desbloquear!")
+        else:
+            for d in disp:
+                c_mat, c_btn = st.columns([3, 1])
+                c_mat.success(f"🔓 **{d}**")
+                if c_btn.button(f"⚔️ CURSAR", key=f"inscribir_{d}"):
+                    # Añadir nueva fila al Excel
+                    nueva_materia = pd.DataFrame([{"Nombre": usuario, "Materia": d, "Estado": "Cursando", "Nota": ""}])
+                    df_final = pd.concat([df, nueva_materia], ignore_index=True)
+                    conn.update(worksheet=0, data=df_final)
+                    st.toast(f"¡Te has inscripto en {d}!")
+                    st.rerun()
 
     elif st.session_state.menu == "Grupo":
         st.header("👥 RECUENTO DE TROPAS")
