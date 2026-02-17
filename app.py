@@ -22,6 +22,7 @@ st.markdown("""
     }
     .retro-font { font-family: 'Press Start 2P', cursive; color: #f1c40f; text-shadow: 2px 2px #000; }
     .hp-bar-text { font-family: 'Press Start 2P', cursive; font-size: 10px; color: #ff4b4b; margin-top: 5px; }
+    .hp-bar-text-blue { font-family: 'Press Start 2P', cursive; font-size: 10px; color: #3498db; margin-top: 5px; }
     .cuatri-header { 
         font-family: 'Press Start 2P', cursive; 
         color: #3498db; 
@@ -71,6 +72,7 @@ PLAN_ESTUDIOS = {
 }
 
 TOTAL_LICENCIATURA = 40
+TOTAL_TECNICATURA = 25
 
 def get_avatar_slug(usuario, n_aprobadas):
     squad = {"Facu": "Allen", "Ivan": "Trevor", "Maca": "Alisa", "Juli": "Nadia", "Kike": "Marco", "Cristian": "Tarma"}
@@ -119,11 +121,18 @@ def main():
             st.link_button("💻 CAMPUS UNLA", "https://campus.unla.edu.ar/aulas/login/index.php", use_container_width=True)
         
         with col_cur:
-            # --- RECUPERADAS: BARRAS DE PROGRESO ---
+            # --- BARRAS DE PROGRESO (DOBLES) ---
             st.markdown("#### 🏆 OBJETIVOS 2026:")
-            progreso = len(aprobadas_df) / TOTAL_LICENCIATURA
-            st.progress(progreso)
-            st.markdown(f"<p class='hp-bar-text'>PROGRESO TOTAL: {int(progreso*100)}%</p>", unsafe_allow_html=True)
+            
+            # Barra Tecnicatura
+            prog_tec = min(len(aprobadas_df) / TOTAL_TECNICATURA, 1.0)
+            st.progress(prog_tec)
+            st.markdown(f"<p class='hp-bar-text-blue'>TECNICATURA (Intermedio): {int(prog_tec*100)}%</p>", unsafe_allow_html=True)
+            
+            # Barra Licenciatura
+            prog_lic = len(aprobadas_df) / TOTAL_LICENCIATURA
+            st.progress(prog_lic)
+            st.markdown(f"<p class='hp-bar-text'>LICENCIATURA (Final): {int(prog_lic*100)}%</p>", unsafe_allow_html=True)
 
             st.markdown("---")
             st.markdown("#### ⚔️ MATERIAS EN CURSO:")
