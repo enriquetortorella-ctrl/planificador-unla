@@ -32,11 +32,10 @@ st.markdown("""
         font-size: 9px; padding: 8px; border-radius: 4px; text-align: center; margin: 5px 0;
     }
     [data-testid="stMetricValue"] { font-family: 'Press Start 2P', cursive; font-size: 18px !important; }
-    [data-testid="stExpander"] { background-color: #1a1c23; border: 1px solid #444; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. PLAN DE ESTUDIOS 2026 CON PERIODOS ---
+# --- 2. PLAN DE ESTUDIOS 2026 ---
 PLAN_ESTUDIOS = {
     "Introducción a Economía Empresarial": {"is_tech": True, "periodo": "Bimestral", "correlativas": []},
     "Historia Económica Contemporánea": {"is_tech": True, "periodo": "1° Cuat.", "correlativas": []},
@@ -86,10 +85,7 @@ TOTAL_TECNICATURA = 25
 def get_avatar_slug(usuario, n_aprobadas):
     squad = {"Facu": "Allen", "Ivan": "Trevor", "Maca": "Alisa", "Juli": "Nadia", "Kike": "Marco", "Cristian": "Tarma"}
     char_base = squad.get(usuario, "Marco")
-    if n_aprobadas <= 10: nivel = 1
-    elif n_aprobadas <= 20: nivel = 2
-    elif n_aprobadas <= 30: nivel = 3
-    else: nivel = 4
+    nivel = 1 if n_aprobadas <= 10 else 2 if n_aprobadas <= 20 else 3 if n_aprobadas <= 30 else 4
     path = os.path.join("assets", f"{char_base}_{nivel}.gif")
     if os.path.exists(path): return path, nivel
     return f"https://api.dicebear.com/7.x/pixel-art/svg?seed={usuario}", nivel
@@ -100,7 +96,10 @@ def main():
     conn = st.connection("gsheets", type=GSheetsConnection)
     df = conn.read(worksheet=0, ttl=0)
     df.columns = [str(c).strip().capitalize() for c in df.columns]
+    
+    # Asegurar que las columnas existan
     if "Nota" not in df.columns: df["Nota"] = ""
+    if "Cursada" not in df.columns: df["Cursada"] = "Regular"
     
     st.markdown("<h1 class='retro-font' style='text-align:center; font-size:24px;'>SQUAD COMMAND 2026</h1>", unsafe_allow_html=True)
     usuarios = sorted(list(df["Nombre"].unique()))
@@ -109,14 +108,10 @@ def main():
     if usuario == "Seleccionar...": return
 
     nav_cols = st.columns(4)
-    with nav_cols[0]:
-        if st.button("🏠 INICIO"): st.session_state.menu = "Inicio"; st.rerun()
-    with nav_cols[1]:
-        if st.button("📝 PRÓX."): st.session_state.menu = "Proximas"; st.rerun()
-    with nav_cols[2]:
-        if st.button("✅ HIST."): st.session_state.menu = "Historial"; st.rerun()
-    with nav_cols[3]:
-        if st.button("👥 GRUPO"): st.session_state.menu = "Grupo"; st.rerun()
+    if nav_cols[0].button("🏠 INICIO"): st.session_state.menu = "Inicio"; st.rerun()
+    if nav_cols[1].button("📝 PRÓX."): st.session_state.menu = "Proximas"; st.rerun()
+    if nav_cols[2].button("✅ HIST."): st.session_state.menu = "Historial"; st.rerun()
+    if nav_cols[3].button("👥 GRUPO"): st.session_state.menu = "Grupo"; st.rerun()
 
     st.markdown("---")
 
@@ -125,11 +120,7 @@ def main():
     cursando_df = mis_datos[mis_datos["Estado"].str.strip().str.capitalize() == "Cursando"]
     ap_nombres = aprobadas_df["Materia"].tolist()
     
-    # Promedio y Progreso
-    tech_aprobadas = [m for m in ap_nombres if m in PLAN_ESTUDIOS and PLAN_ESTUDIOS[m]["is_tech"]]
-    n_tech = len(tech_aprobadas)
-    notas_validas = pd.to_numeric(aprobadas_df["Nota"], errors='coerce').dropna()
-    promedio = notas_validas.mean() if not notas_validas.empty else 0.0
+    promedio = pd.to_numeric(aprobadas_df["Nota"], errors='coerce').dropna().mean() if not aprobadas_df.empty else 0.0
 
     if st.session_state.menu == "Inicio":
         col_av, col_cur = st.columns([1, 2])
@@ -138,28 +129,27 @@ def main():
             st.image(img_path, width=150)
             st.markdown(f"<p class='retro-font' style='text-align:center; font-size:14px;'>{usuario.upper()}</p>", unsafe_allow_html=True)
             st.metric("PROMEDIO", f"{promedio:.2f}")
-            st.link_button("📂 DRIVE", "https://drive.google.com/drive/folders/1C7LQskupjeW2sO2wnD_upyYnuxip4oqs", use_container_width=True)
+            st.link_button("📂 DRIVE SQUAD", "https://drive.google.com/drive/folders/1C7LQskupjeW2sO2wnD_upyYnuxip4oqs", use_container_width=True)
+            st.link_button("🏛️ SIU GUARANÍ", "https://estudiantes.unla.edu.ar/autogestion3w/acceso", use_container_width=True)
+            st.link_button("💻 CAMPUS UNLA", "https://campus.unla.edu.ar/aulas/login/index.php", use_container_width=True)
         
         with col_cur:
             st.markdown("#### 🏆 OBJETIVOS 2026:")
-            st.progress(n_tech / TOTAL_TECNICATURA)
-            st.markdown(f"<p class='hp-bar-text'>TECNICATURA: {int((n_tech/TOTAL_TECNICATURA)*100)}%</p>", unsafe_allow_html=True)
             st.progress(len(aprobadas_df) / TOTAL_LICENCIATURA)
-            st.markdown(f"<p class='hp-bar-text'>LICENCIATURA: {int((len(aprobadas_df)/TOTAL_LICENCIATURA)*100)}%</p>", unsafe_allow_html=True)
+            st.markdown(f"<p class='hp-bar-text'>PROGRESO TOTAL: {int((len(aprobadas_df)/TOTAL_LICENCIATURA)*100)}%</p>", unsafe_allow_html=True)
 
             st.markdown("---")
             st.markdown("#### ⚔️ MATERIAS EN CURSO:")
             for i, materia in enumerate(cursando_df["Materia"]):
-                periodo = PLAN_ESTUDIOS.get(materia, {}).get("periodo", "S/D")
-                col_btn_m, col_btn_del = st.columns([4, 1])
+                tipo_c = cursando_df.iloc[i]["Cursada"]
+                c_btn_m, c_btn_del = st.columns([4, 1])
                 
-                if col_btn_m.button(f"✅ {materia} ({periodo})", key=f"mision_{i}"):
+                if c_btn_m.button(f"✅ {materia} [{tipo_c}]", key=f"mision_{i}"):
                     st.session_state[f"aprobar_{materia}"] = True
                 
-                if col_btn_del.button("❌", key=f"del_{i}", help="Dar de baja materia"):
+                if c_btn_del.button("❌", key=f"del_{i}"):
                     df = df.drop(df[(df["Nombre"] == usuario) & (df["Materia"] == materia)].index)
                     conn.update(worksheet=0, data=df)
-                    st.toast(f"Misión abortada: {materia}")
                     st.rerun()
 
                 if st.session_state.get(f"aprobar_{materia}", False):
@@ -177,27 +167,36 @@ def main():
         materias_en_registro = mis_datos["Materia"].tolist()
         disp = [m for m, i in PLAN_ESTUDIOS.items() if m not in materias_en_registro and all(c in ap_nombres for c in i["correlativas"])]
         
-        if not disp:
-            st.warning("No hay materias desbloqueadas. ¡Revisa tus finales!")
-        else:
-            for d in disp:
-                info = PLAN_ESTUDIOS[d]
-                c1, c2 = st.columns([3, 1])
-                c1.success(f"🔓 **{d}**")
-                st.markdown(f"<p class='info-text'>Régimen: {info['periodo']} | {'Tecnicatura' if info['is_tech'] else 'Licenciatura'}</p>", unsafe_allow_html=True)
-                if c2.button(f"⚔️ CURSAR", key=f"inscribir_{d}"):
-                    nueva = pd.DataFrame([{"Nombre": usuario, "Materia": d, "Estado": "Cursando", "Nota": ""}])
-                    df_final = pd.concat([df, nueva], ignore_index=True)
-                    conn.update(worksheet=0, data=df_final)
-                    st.rerun()
-
-    elif st.session_state.menu == "Historial":
-        st.header("✅ REGISTRO DE COMBATE")
-        st.dataframe(mis_datos[["Materia", "Estado", "Nota"]].sort_values("Estado"), use_container_width=True, hide_index=True)
+        for d in disp:
+            info = PLAN_ESTUDIOS[d]
+            c1, c2, c3 = st.columns([2, 1, 1])
+            c1.success(f"🔓 **{d}**")
+            tipo_cursada = c2.selectbox("Modalidad:", ["Regular", "Contracursada"], key=f"tipo_{d}")
+            if c3.button(f"⚔️ CURSAR", key=f"inscribir_{d}"):
+                nueva = pd.DataFrame([{"Nombre": usuario, "Materia": d, "Estado": "Cursando", "Nota": "", "Cursada": tipo_cursada}])
+                df_final = pd.concat([df, nueva], ignore_index=True)
+                conn.update(worksheet=0, data=df_final)
+                st.rerun()
 
     elif st.session_state.menu == "Grupo":
         st.header("👥 RECUENTO DE TROPAS")
-        ranking = df[df["Estado"] == "Aprobada"].groupby("Nombre")["Materia"].count().sort_values(ascending=False)
-        st.bar_chart(ranking)
+        # Filtramos solo lo que están cursando para ver coincidencias
+        en_curso_grupo = df[df["Estado"].str.strip().str.capitalize() == "Cursando"]
+        
+        if en_curso_grupo.empty:
+            st.info("Nadie está cursando materias actualmente.")
+        else:
+            # Agrupamos por materia para ver quiénes están juntos
+            materias_activas = en_curso_grupo["Materia"].unique()
+            for mat in materias_activas:
+                estudiantes = en_curso_grupo[en_curso_grupo["Materia"] == mat]
+                nombres_juntos = ", ".join(estudiantes["Nombre"].tolist())
+                cursada_info = estudiantes.iloc[0]["Cursada"]
+                st.markdown(f"**{mat}** ({cursada_info})")
+                st.info(f"🎖️ Soldados: {nombres_juntos}")
+
+    elif st.session_state.menu == "Historial":
+        st.header("✅ REGISTRO DE COMBATE")
+        st.dataframe(mis_datos[["Materia", "Estado", "Nota", "Cursada"]].sort_values("Estado"), use_container_width=True, hide_index=True)
 
 if __name__ == "__main__": main()
