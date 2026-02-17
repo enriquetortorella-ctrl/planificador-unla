@@ -35,55 +35,54 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. PLAN DE ESTUDIOS (Con marca de Tecnicatura) ---
-# He marcado con "is_tech": True las materias que suelen entrar en el título intermedio
+# --- 2. PLAN DE ESTUDIOS 2026 (ACTUALIZADO) ---
+# Se marcaron como is_tech: True las materias hasta el 6° cuatrimestre + Práctica
 PLAN_ESTUDIOS = {
-    "Taller de Producción de Textos": {"is_tech": True, "correlativas": []},
-    "Introducción a la Matemática": {"is_tech": True, "correlativas": []},
-    "Contabilidad": {"is_tech": True, "correlativas": []},
+    "Introducción a Economía Empresarial": {"is_tech": True, "correlativas": []},
     "Historia Económica Contemporánea": {"is_tech": True, "correlativas": []},
-    "Elementos de Matemática": {"is_tech": True, "correlativas": ["Introducción a la Matemática"]},
+    "Contabilidad": {"is_tech": True, "correlativas": []},
+    "Matemática I": {"is_tech": True, "correlativas": []},
+    "Taller de Comunicación y Producción de Textos": {"is_tech": True, "correlativas": []},
+    "Empresa, Economía y Sociedad": {"is_tech": True, "correlativas": ["Historia Económica Contemporánea"]},
     "Organización y Gestión": {"is_tech": True, "correlativas": []},
-    "Economía y Sociedad": {"is_tech": True, "correlativas": ["Historia Económica Contemporánea"]},
-    "Microeconomía": {"is_tech": True, "correlativas": ["Historia Económica Contemporánea", "Introducción a la Matemática"]},
+    "Matemática II": {"is_tech": True, "correlativas": ["Matemática I"]},
     "Derecho Comercial": {"is_tech": True, "correlativas": ["Organización y Gestión"]},
-    "Cálculo Financiero y Est. Aplicado": {"is_tech": True, "correlativas": ["Elementos de Matemática"]},
-    "Costos Empresariales": {"is_tech": True, "correlativas": ["Elementos de Matemática", "Organización y Gestión"]},
-    "Derecho Tributario": {"is_tech": True, "correlativas": ["Derecho Comercial"]},
-    "Macroeconomía": {"is_tech": True, "correlativas": ["Economía y Sociedad"]},
-    "Org. de la Producción y Tecnología": {"is_tech": True, "correlativas": ["Costos Empresariales"]},
-    "Derecho del Trabajo y Seg. Social": {"is_tech": True, "correlativas": ["Derecho Tributario"]},
-    "Comercialización": {"is_tech": True, "correlativas": ["Costos Empresariales", "Macroeconomía"]},
-    "Control de Gestión": {"is_tech": True, "correlativas": ["Costos Empresariales"]},
-    "Macroeconomía y Pol. Económica": {"is_tech": True, "correlativas": ["Macroeconomía"]},
-    "Comercio Exterior y Ec. Int.": {"is_tech": True, "correlativas": ["Macroeconomía y Pol. Económica"]},
-    "Plan de Negocios": {"is_tech": True, "correlativas": ["Control de Gestión", "Comercialización"]},
-    "Financiamiento": {"is_tech": True, "correlativas": ["Comercialización"]},
-    "Taller de Integración I": {"is_tech": True, "correlativas": ["Comercialización"]},
-    "Nivel 1 - Inglés": {"is_tech": True, "correlativas": []},
-    "Nivel 2 - Inglés": {"is_tech": True, "correlativas": ["Nivel 1 - Inglés"]},
-    "Informática (Módulos)": {"is_tech": True, "correlativas": []},
-    "Práctica Pre-Profesional": {"is_tech": True, "correlativas": ["Taller de Integración I"]},
-    # Materias solo de Licenciatura
-    "Formulación y Ev. de Proyectos": {"is_tech": False, "correlativas": ["Comercio Exterior y Ec. Int.", "Plan de Negocios"]},
-    "Sistemas de Organización": {"is_tech": False, "correlativas": ["Plan de Negocios"]},
-    "Economía Industrial": {"is_tech": False, "correlativas": ["Macroeconomía y Pol. Económica"]},
-    "Economía Bancaria y Financiera": {"is_tech": False, "correlativas": ["Financiamiento"]},
-    "Gestión Ambiental y Empresa": {"is_tech": False, "correlativas": ["Org. de la Producción y Tecnología"]},
-    "Admin. de Recursos Humanos": {"is_tech": False, "correlativas": ["Gestión Ambiental y Empresa"]},
-    "Taller de Integración II": {"is_tech": False, "correlativas": ["Sistemas de Organización"]},
-    "Mediación y Negociación": {"is_tech": False, "correlativas": ["Admin. de Recursos Humanos"]},
-    "Problemas Actuales de la Econ. Arg.": {"is_tech": False, "correlativas": ["Taller de Integración II"]},
-    "Seminario: Resp. Social Empresaria": {"is_tech": False, "correlativas": ["Ética y Empresa"]},
-    "Seminario: Economía Social": {"is_tech": False, "correlativas": ["Políticas y Estrategias Des. Reg."]},
-    "Taller de Trabajo Final Integrador": {"is_tech": False, "correlativas": ["Taller de Integración II"]},
-    "Ética y Empresa": {"is_tech": False, "correlativas": ["Admin. de Recursos Humanos"]},
-    "Planeamiento Estratégico": {"is_tech": False, "correlativas": ["Políticas y Estrategias Des. Reg."]},
-    "Políticas y Estrategias Des. Reg.": {"is_tech": False, "correlativas": ["Taller de Integración II"]}
+    "Seminario de Justicia y Derechos Humanos": {"is_tech": True, "correlativas": []},
+    "Microeconomía I": {"is_tech": True, "correlativas": ["Empresa, Economía y Sociedad", "Matemática I"]},
+    "Cálculo Financiero": {"is_tech": True, "correlativas": ["Matemática II"]},
+    "Comercialización": {"is_tech": True, "correlativas": ["Organización y Gestión"]},
+    "Costos Empresariales": {"is_tech": True, "correlativas": ["Contabilidad", "Matemática II"]},
+    "Seminario de Pensamiento Nacional Latinoamericano": {"is_tech": True, "correlativas": []},
+    "Macroeconomía": {"is_tech": True, "correlativas": ["Microeconomía I"]},
+    "Estadística": {"is_tech": True, "correlativas": ["Matemática II"]},
+    "Sistemas de Información": {"is_tech": True, "correlativas": ["Contabilidad"]},
+    "Administración Financiera": {"is_tech": True, "correlativas": ["Cálculo Financiero"]},
+    "Derecho del Trabajo y la Seguridad Social": {"is_tech": True, "correlativas": ["Derecho Comercial"]},
+    "Microeconomía II": {"is_tech": True, "correlativas": ["Microeconomía I"]},
+    "Investigación de Operaciones": {"is_tech": True, "correlativas": ["Estadística"]},
+    "Principios de Tributación": {"is_tech": True, "correlativas": ["Derecho Comercial", "Costos Empresariales"]},
+    "Seminario de Integración I": {"is_tech": True, "correlativas": ["Comercialización", "Administración Financiera"]},
+    "Taller de Práctica Preprofesional": {"is_tech": True, "correlativas": ["Seminario de Integración I"]},
+    # Ciclo Superior (Licenciatura)
+    "Macroeconomía y Política Económica": {"is_tech": False, "correlativas": ["Macroeconomía"]},
+    "Tecnología y Ciencia de Datos": {"is_tech": False, "correlativas": ["Investigación de Operaciones"]},
+    "Seminario Optativo 1": {"is_tech": False, "correlativas": []},
+    "Seminario Optativo 2": {"is_tech": False, "correlativas": []},
+    "Gestión Ambiental y Empresa": {"is_tech": False, "correlativas": ["Organización y Gestión"]},
+    "Taller de Proyecto Empresarial": {"is_tech": False, "correlativas": ["Seminario de Integración I"]},
+    "Planeamiento Estratégico": {"is_tech": False, "correlativas": ["Seminario de Integración I"]},
+    "Seminario Optativo 3": {"is_tech": False, "correlativas": []},
+    "Política Económica": {"is_tech": False, "correlativas": ["Macroeconomía y Política Económica"]},
+    "Inteligencia de Negocios": {"is_tech": False, "correlativas": ["Tecnología y Ciencia de Datos"]},
+    "Comercio Exterior": {"is_tech": False, "correlativas": ["Macroeconomía y Política Económica"]},
+    "Inglés I": {"is_tech": False, "correlativas": []},
+    "Seminario Optativo 4": {"is_tech": False, "correlativas": []},
+    "Taller de Trabajo Final Integrador": {"is_tech": False, "correlativas": ["Taller de Proyecto Empresarial"]},
+    "Inglés II": {"is_tech": False, "correlativas": ["Inglés I"]}
 }
 
-TOTAL_LICENCIATURA = 42
-TOTAL_TECNICATURA = len([m for m, v in PLAN_ESTUDIOS.items() if v["is_tech"]])
+TOTAL_LICENCIATURA = 40
+TOTAL_TECNICATURA = 25
 
 def get_avatar_slug(usuario, n_aprobadas):
     squad = {"Facu": "Allen", "Ivan": "Trevor", "Maca": "Alisa", "Juli": "Nadia", "Kike": "Marco", "Cristian": "Tarma"}
@@ -104,7 +103,7 @@ def main():
     df.columns = [str(c).strip().capitalize() for c in df.columns]
     if "Nota" not in df.columns: df["Nota"] = ""
     
-    st.markdown("<h1 class='retro-font' style='text-align:center; font-size:24px;'>SQUAD COMMAND</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 class='retro-font' style='text-align:center; font-size:24px;'>SQUAD COMMAND 2026</h1>", unsafe_allow_html=True)
     usuarios = sorted(list(df["Nombre"].unique()))
     usuario = st.selectbox("👤 SOLDADO:", ["Seleccionar..."] + usuarios, label_visibility="collapsed")
     
@@ -146,20 +145,16 @@ def main():
             st.link_button("🏛️ SIU", "https://estudiantes.unla.edu.ar/autogestion3w/acceso", use_container_width=True)
         
         with col_cur:
-            # --- SECCIÓN DE PROGRESO DUAL ---
-            st.markdown("#### 🏆 OBJETIVOS:")
+            st.markdown("#### 🏆 OBJETIVOS 2026:")
             
-            # Progress Bar Tecnicatura
             prog_tech = int((n_tech / TOTAL_TECNICATURA) * 100)
             st.markdown(f"<p class='hp-bar-text'>TECNICATURA: {prog_tech}%</p>", unsafe_allow_html=True)
             st.progress(n_tech / TOTAL_TECNICATURA)
             
-            # Progress Bar Licenciatura
             prog_lic = int((len(aprobadas_df) / TOTAL_LICENCIATURA) * 100)
             st.markdown(f"<p class='hp-bar-text'>LICENCIATURA: {prog_lic}%</p>", unsafe_allow_html=True)
             st.progress(len(aprobadas_df) / TOTAL_LICENCIATURA)
             
-            # KPIs de materias faltantes
             kpi1, kpi2 = st.columns(2)
             with kpi1:
                 st.markdown(f'<div class="tech-badge">🎓 TÉCNICO: FALTAN {TOTAL_TECNICATURA - n_tech}</div>', unsafe_allow_html=True)
@@ -182,9 +177,8 @@ def main():
                             st.session_state[f"aprobar_{materia}"] = False
                             st.rerun()
 
-    # El resto del código se mantiene igual...
     elif st.session_state.menu == "Historial":
-        st.header("✅ REGISTRO DE COMBATE")
+        st.header("✅ REGISTRO DE COMBATE 2026")
         pendientes_nota = aprobadas_df[pd.to_numeric(aprobadas_df["Nota"], errors='coerce').isna()]
         if not pendientes_nota.empty:
             for j, row in pendientes_nota.iterrows():
@@ -209,5 +203,3 @@ def main():
         st.bar_chart(ranking)
 
 if __name__ == "__main__": main()
-
-
