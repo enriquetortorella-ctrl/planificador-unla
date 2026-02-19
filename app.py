@@ -42,47 +42,47 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. PLAN DE ESTUDIOS ---
+# --- 2. PLAN DE ESTUDIOS CON CRÉDITOS (PUNTOS) ---
+# Datos extraídos del plan oficial UNLa
 PLAN_ESTUDIOS = {
-    "Introducción a Economía Empresarial": {"periodo_original": "1° Cuat.", "correlativas": []},
-    "Historia Económica Contemporánea": {"periodo_original": "1° Cuat.", "correlativas": []},
-    "Contabilidad": {"periodo_original": "1° Cuat.", "correlativas": []},
-    "Matemática I": {"periodo_original": "1° Cuat.", "correlativas": []},
-    "Taller de Comunicación y Producción de Textos": {"periodo_original": "1° Cuat.", "correlativas": []},
-    "Empresa, Economía y Sociedad": {"periodo_original": "2° Cuat.", "correlativas": ["Historia Económica Contemporánea"]},
-    "Organización y Gestión": {"periodo_original": "2° Cuat.", "correlativas": []},
-    "Matemática II": {"periodo_original": "2° Cuat.", "correlativas": ["Matemática I"]},
-    "Derecho Comercial": {"periodo_original": "2° Cuat.", "correlativas": ["Organización y Gestión"]},
-    "Seminario de Justicia y Derechos Humanos": {"periodo_original": "2° Cuat.", "correlativas": []},
-    "Microeconomía I": {"periodo_original": "1° Cuat.", "correlativas": ["Empresa, Economía y Sociedad", "Matemática I"]},
-    "Cálculo Financiero": {"periodo_original": "1° Cuat.", "correlativas": ["Matemática II"]},
-    "Comercialización": {"periodo_original": "1° Cuat.", "correlativas": ["Organización y Gestión"]},
-    "Costos Empresariales": {"periodo_original": "1° Cuat.", "correlativas": ["Contabilidad", "Matemática II"]},
-    "Seminario de Pensamiento Nacional Latinoamericano": {"periodo_original": "1° Cuat.", "correlativas": []},
-    "Macroeconomía": {"periodo_original": "2° Cuat.", "correlativas": ["Microeconomía I"]},
-    "Estadística": {"periodo_original": "2° Cuat.", "correlativas": ["Matemática II"]},
-    "Sistemas de Información": {"periodo_original": "2° Cuat.", "correlativas": ["Contabilidad"]},
-    "Administración Financiera": {"periodo_original": "2° Cuat.", "correlativas": ["Cálculo Financiero"]},
-    "Derecho del Trabajo y la Seguridad Social": {"periodo_original": "2° Cuat.", "correlativas": ["Derecho Comercial"]},
-    "Microeconomía II": {"periodo_original": "1° Cuat.", "correlativas": ["Microeconomía I"]},
-    "Investigación de Operaciones": {"periodo_original": "1° Cuat.", "correlativas": ["Estadística"]},
-    "Principios de Tributación": {"periodo_original": "1° Cuat.", "correlativas": ["Derecho Comercial", "Costos Empresariales"]},
-    "Seminario de Integración I": {"periodo_original": "Anual", "correlativas": ["Comercialización", "Administración Financiera"]},
-    "Taller de Práctica Preprofesional": {"periodo_original": "2° Cuat.", "correlativas": ["Seminario de Integración I"]}
+    "Introducción a Economía Empresarial": {"periodo": "1° Cuat.", "puntos": 4, "correlativas": []},
+    "Historia Económica Contemporánea": {"periodo": "1° Cuat.", "puntos": 5, "correlativas": []},
+    "Contabilidad": {"periodo": "1° Cuat.", "puntos": 8, "correlativas": []},
+    "Matemática I": {"periodo": "1° Cuat.", "puntos": 8, "correlativas": []},
+    "Taller de Comunicación y Producción de Textos": {"periodo": "1° Cuat.", "puntos": 5, "correlativas": []},
+    "Empresa, Economía y Sociedad": {"periodo": "2° Cuat.", "puntos": 6, "correlativas": ["Historia Económica Contemporánea"]},
+    "Organización y Gestión": {"periodo": "2° Cuat.", "puntos": 7, "correlativas": []},
+    "Matemática II": {"periodo": "2° Cuat.", "puntos": 8, "correlativas": ["Matemática I"]},
+    "Derecho Comercial": {"periodo": "2° Cuat.", "puntos": 6, "correlativas": ["Organización y Gestión"]},
+    "Seminario de Justicia y Derechos Humanos": {"periodo": "2° Cuat.", "puntos": 3, "correlativas": []},
+    "Microeconomía I": {"periodo": "1° Cuat.", "puntos": 8, "correlativas": ["Empresa, Economía y Sociedad", "Matemática I"]},
+    "Cálculo Financiero": {"periodo": "1° Cuat.", "puntos": 6, "correlativas": ["Matemática II"]},
+    "Comercialización": {"periodo": "1° Cuat.", "puntos": 6, "correlativas": ["Organización y Gestión"]},
+    "Costos Empresariales": {"periodo": "1° Cuat.", "puntos": 8, "correlativas": ["Contabilidad", "Matemática II"]},
+    "Seminario de Pensamiento Nacional Latinoamericano": {"periodo": "1° Cuat.", "puntos": 3, "correlativas": []},
+    "Macroeconomía": {"periodo": "2° Cuat.", "puntos": 6, "correlativas": ["Microeconomía I"]},
+    "Estadística": {"periodo": "2° Cuat.", "puntos": 6, "correlativas": ["Matemática II"]},
+    "Sistemas de Información": {"periodo": "2° Cuat.", "puntos": 6, "correlativas": ["Contabilidad"]},
+    "Administración Financiera": {"periodo": "2° Cuat.", "puntos": 6, "correlativas": ["Cálculo Financiero"]},
+    "Derecho del Trabajo y la Seguridad Social": {"periodo": "2° Cuat.", "puntos": 6, "correlativas": ["Derecho Comercial"]},
+    "Microeconomía II": {"periodo": "1° Cuat.", "puntos": 6, "correlativas": ["Microeconomía I"]},
+    "Investigación de Operaciones": {"periodo": "1° Cuat.", "puntos": 6, "correlativas": ["Estadística"]},
+    "Principios de Tributación": {"periodo": "1° Cuat.", "puntos": 6, "correlativas": ["Derecho Comercial", "Costos Empresariales"]},
+    "Seminario de Integración I": {"periodo": "Anual", "puntos": 8, "correlativas": ["Comercialización", "Administración Financiera"]},
+    "Taller de Práctica Preprofesional": {"periodo": "2° Cuat.", "puntos": 5, "correlativas": ["Seminario de Integración I"]}
 }
 
-TOTAL_LICENCIATURA = 40
-TOTAL_TECNICATURA = 25
+CREDITOS_TOTAL_TECNICATURA = 120
+CREDITOS_TOTAL_LICENCIATURA = 240
 
 def get_avatar_slug(usuario, n_aprobadas):
     squad = {"Facu": "Allen", "Ivan": "Trevor", "Maca": "Alisa", "Juli": "Nadia", "Kike": "Marco", "Cristian": "Tarma"}
     char_base = squad.get(usuario, "Marco")
     nivel = 1 if n_aprobadas <= 10 else 2 if n_aprobadas <= 20 else 3 if n_aprobadas <= 30 else 4
-    return os.path.join("assets", f"{char_base}_{nivel}.gif"), nivel
+    return os.path.join("assets", f"{char_base}_{nivel}.gif")
 
 def main():
     if "menu" not in st.session_state: st.session_state.menu = "Inicio"
-    
     conn = st.connection("gsheets", type=GSheetsConnection)
     df = conn.read(worksheet=0, ttl=0)
     df.columns = [str(c).strip().capitalize() for c in df.columns]
@@ -108,37 +108,36 @@ def main():
     aprobadas_df = mis_datos[mis_datos["Estado"].str.strip().str.capitalize() == "Aprobada"]
     cursando_df = mis_datos[mis_datos["Estado"].str.strip().str.capitalize() == "Cursando"]
     
+    # --- CÁLCULO DE PUNTOS REALES ---
+    puntos_logrados = sum([PLAN_ESTUDIOS.get(m, {}).get("puntos", 0) for m in aprobadas_df["Materia"]])
     promedio = pd.to_numeric(aprobadas_df["Nota"], errors='coerce').dropna().mean() if not aprobadas_df.empty else 0.0
 
     if st.session_state.menu == "Inicio":
         col_av, col_cur = st.columns([1, 2])
         with col_av:
-            img_path, _ = get_avatar_slug(usuario, len(aprobadas_df))
+            img_path = get_avatar_slug(usuario, len(aprobadas_df))
             st.image(img_path, width=150)
+            st.metric("PUNTOS", puntos_logrados)
             st.metric("PROMEDIO", f"{promedio:.2f}")
-            st.link_button("📂 DRIVE SQUAD", "https://drive.google.com/drive/folders/1C7LQskupjeW2sO2wnD_upyYnuxip4oqs", use_container_width=True)
-            st.link_button("🏛️ SIU GUARANÍ", "https://estudiantes.unla.edu.ar/autogestion3w/acceso", use_container_width=True)
-            st.link_button("💻 CAMPUS UNLA", "https://campus.unla.edu.ar/aulas/login/index.php", use_container_width=True)
+            st.link_button("📂 DRIVE", "https://drive.google.com/drive/folders/1C7LQskupjeW2sO2wnD_upyYnuxip4oqs", use_container_width=True)
         
         with col_cur:
-            # --- BARRAS DE PROGRESO (DOBLES) ---
-            st.markdown("#### 🏆 OBJETIVOS 2026:")
+            st.markdown("#### 🏆 PROGRESO POR CRÉDITOS (PUNTOS):")
             
-            # Barra Tecnicatura
-            prog_tec = min(len(aprobadas_df) / TOTAL_TECNICATURA, 1.0)
+            # HP Barra Tecnicatura
+            prog_tec = min(puntos_logrados / CREDITOS_TOTAL_TECNICATURA, 1.0)
             st.progress(prog_tec)
-            st.markdown(f"<p class='hp-bar-text-blue'>TECNICATURA (Intermedio): {int(prog_tec*100)}%</p>", unsafe_allow_html=True)
+            st.markdown(f"<p class='hp-bar-text-blue'>TECNICATURA: {puntos_logrados}/{CREDITOS_TOTAL_TECNICATURA} pts ({int(prog_tec*100)}%)</p>", unsafe_allow_html=True)
             
-            # Barra Licenciatura
-            prog_lic = len(aprobadas_df) / TOTAL_LICENCIATURA
+            # HP Barra Licenciatura
+            prog_lic = min(puntos_logrados / CREDITOS_TOTAL_LICENCIATURA, 1.0)
             st.progress(prog_lic)
-            st.markdown(f"<p class='hp-bar-text'>LICENCIATURA (Final): {int(prog_lic*100)}%</p>", unsafe_allow_html=True)
+            st.markdown(f"<p class='hp-bar-text'>LICENCIATURA: {puntos_logrados}/{CREDITOS_TOTAL_LICENCIATURA} pts ({int(prog_lic*100)}%)</p>", unsafe_allow_html=True)
 
             st.markdown("---")
             st.markdown("#### ⚔️ MATERIAS EN CURSO:")
             for i, row in cursando_df.iterrows():
-                materia = row["Materia"]
-                tipo_c = row["Cursada"]
+                materia, tipo_c = row["Materia"], row["Cursada"]
                 c_btn_m, c_btn_del = st.columns([4, 1])
                 if c_btn_m.button(f"✅ {materia} [{tipo_c}]", key=f"mision_{i}"):
                     st.session_state[f"aprobar_{materia}"] = True
@@ -157,24 +156,14 @@ def main():
     elif st.session_state.menu == "Grupo":
         st.header("👥 DESPLIEGUE POR CUATRIMESTRE REAL")
         en_curso = df[df["Estado"].str.strip().str.capitalize() == "Cursando"].copy()
-        
-        def asignar_periodo_real(row):
-            teorico = PLAN_ESTUDIOS.get(row["Materia"], {}).get("periodo_original", "1° Cuat.")
-            if row["Cursada"] == "Contracursada":
-                return "2° Cuatrimestre" if teorico == "1° Cuat." else "1° Cuatrimestre"
-            return "1° Cuatrimestre" if teorico == "1° Cuat." else "2° Cuatrimestre"
-
         if not en_curso.empty:
-            en_curso["PeriodoReal"] = en_curso.apply(asignar_periodo_real, axis=1)
             for periodo in ["1° Cuatrimestre", "2° Cuatrimestre"]:
                 st.markdown(f"<div class='cuatri-header'>{periodo}</div>", unsafe_allow_html=True)
-                materias_del_periodo = en_curso[en_curso["PeriodoReal"] == periodo]
-                for mat in materias_del_periodo["Materia"].unique():
-                    soldados_data = materias_del_periodo[materias_del_periodo["Materia"] == mat]
-                    lista_nombres = [f"{r['Nombre']} ({r['Cursada']})" for _, r in soldados_data.iterrows()]
-                    st.markdown(f"<div class='materia-card'><strong>{mat}</strong><br><span style='color: #aaa;'>🎖️ Soldados: {', '.join(lista_nombres)}</span></div>", unsafe_allow_html=True)
-        else:
-            st.warning("No hay datos de cursada actual.")
+                materias_periodo = en_curso[en_curso["Materia"].apply(lambda x: PLAN_ESTUDIOS.get(x, {}).get("periodo") == periodo[:7])]
+                for mat in materias_periodo["Materia"].unique():
+                    soldados = materias_periodo[materias_periodo["Materia"] == mat]
+                    lista = ", ".join([f"{r['Nombre']} ({r['Cursada']})" for _, r in soldados.iterrows()])
+                    st.markdown(f"<div class='materia-card'><strong>{mat}</strong> ({PLAN_ESTUDIOS.get(mat,{}).get('puntos')} pts)<br>🎖️ {lista}</div>", unsafe_allow_html=True)
 
     elif st.session_state.menu == "Proximas":
         st.header("📝 PRÓXIMOS OBJETIVOS")
@@ -183,7 +172,7 @@ def main():
         disp = [m for m, i in PLAN_ESTUDIOS.items() if m not in ya_registradas and all(c in aprobadas for c in i["correlativas"])]
         for d in disp:
             c1, c2, c3 = st.columns([2, 1, 1])
-            c1.success(f"🔓 **{d}**")
+            c1.success(f"🔓 **{d}** ({PLAN_ESTUDIOS[d]['puntos']} pts)")
             tipo = c2.selectbox("Modalidad:", ["Regular", "Contracursada"], key=f"t_{d}")
             if c3.button("⚔️ CURSAR", key=f"in_{d}"):
                 nueva = pd.DataFrame([{"Nombre": usuario, "Materia": d, "Estado": "Cursando", "Cursada": tipo}])
