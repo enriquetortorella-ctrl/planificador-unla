@@ -42,8 +42,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- 2. PLAN DE ESTUDIOS CON CRÉDITOS (PUNTOS) ---
-# Datos extraídos del plan oficial UNLa
+# --- 2. PLAN DE ESTUDIOS CON CRÉDITOS ---
 PLAN_ESTUDIOS = {
     "Introducción a Economía Empresarial": {"periodo": "1° Cuat.", "puntos": 4, "correlativas": []},
     "Historia Económica Contemporánea": {"periodo": "1° Cuat.", "puntos": 5, "correlativas": []},
@@ -108,7 +107,6 @@ def main():
     aprobadas_df = mis_datos[mis_datos["Estado"].str.strip().str.capitalize() == "Aprobada"]
     cursando_df = mis_datos[mis_datos["Estado"].str.strip().str.capitalize() == "Cursando"]
     
-    # --- CÁLCULO DE PUNTOS REALES ---
     puntos_logrados = sum([PLAN_ESTUDIOS.get(m, {}).get("puntos", 0) for m in aprobadas_df["Materia"]])
     promedio = pd.to_numeric(aprobadas_df["Nota"], errors='coerce').dropna().mean() if not aprobadas_df.empty else 0.0
 
@@ -119,17 +117,16 @@ def main():
             st.image(img_path, width=150)
             st.metric("PUNTOS", puntos_logrados)
             st.metric("PROMEDIO", f"{promedio:.2f}")
-            st.link_button("📂 DRIVE", "https://drive.google.com/drive/folders/1C7LQskupjeW2sO2wnD_upyYnuxip4oqs", use_container_width=True)
+            st.link_button("📂 DRIVE SQUAD", "https://drive.google.com/drive/folders/1C7LQskupjeW2sO2wnD_upyYnuxip4oqs", use_container_width=True)
+            st.link_button("🏛️ SIU GUARANÍ", "https://estudiantes.unla.edu.ar/autogestion3w/acceso", use_container_width=True)
+            st.link_button("💻 CAMPUS UNLA", "https://campus.unla.edu.ar/aulas/login/index.php", use_container_width=True)
         
         with col_cur:
-            st.markdown("#### 🏆 PROGRESO POR CRÉDITOS (PUNTOS):")
-            
-            # HP Barra Tecnicatura
+            st.markdown("#### 🏆 PROGRESO POR CRÉDITOS:")
             prog_tec = min(puntos_logrados / CREDITOS_TOTAL_TECNICATURA, 1.0)
             st.progress(prog_tec)
             st.markdown(f"<p class='hp-bar-text-blue'>TECNICATURA: {puntos_logrados}/{CREDITOS_TOTAL_TECNICATURA} pts ({int(prog_tec*100)}%)</p>", unsafe_allow_html=True)
             
-            # HP Barra Licenciatura
             prog_lic = min(puntos_logrados / CREDITOS_TOTAL_LICENCIATURA, 1.0)
             st.progress(prog_lic)
             st.markdown(f"<p class='hp-bar-text'>LICENCIATURA: {puntos_logrados}/{CREDITOS_TOTAL_LICENCIATURA} pts ({int(prog_lic*100)}%)</p>", unsafe_allow_html=True)
@@ -156,14 +153,30 @@ def main():
     elif st.session_state.menu == "Grupo":
         st.header("👥 DESPLIEGUE POR CUATRIMESTRE REAL")
         en_curso = df[df["Estado"].str.strip().str.capitalize() == "Cursando"].copy()
+        
+        # Función para determinar cuatrimestre real (incluyendo contracursadas)
+        def asignar_periodo_real(row):
+            teorico = PLAN_ESTUDIOS.get(row["Materia"], {}).get("periodo", "1° Cuat.")
+            if row["Cursada"] == "Contracursada":
+                return "2° Cuatrimestre" if teorico == "1° Cuat." else "1° Cuatrimestre"
+            return "1° Cuatrimestre" if teorico == "1° Cuat." else "2° Cuatrimestre"
+
         if not en_curso.empty:
+            en_curso["PeriodoReal"] = en_curso.apply(asignar_periodo_real, axis=1)
             for periodo in ["1° Cuatrimestre", "2° Cuatrimestre"]:
                 st.markdown(f"<div class='cuatri-header'>{periodo}</div>", unsafe_allow_html=True)
-                materias_periodo = en_curso[en_curso["Materia"].apply(lambda x: PLAN_ESTUDIOS.get(x, {}).get("periodo") == periodo[:7])]
-                for mat in materias_periodo["Materia"].unique():
-                    soldados = materias_periodo[materias_periodo["Materia"] == mat]
-                    lista = ", ".join([f"{r['Nombre']} ({r['Cursada']})" for _, r in soldados.iterrows()])
-                    st.markdown(f"<div class='materia-card'><strong>{mat}</strong> ({PLAN_ESTUDIOS.get(mat,{}).get('puntos')} pts)<br>🎖️ {lista}</div>", unsafe_allow_html=True)
+                materias_del_periodo = en_curso[en_curso["PeriodoReal"] == periodo]
+                
+                if not materias_del_periodo.empty:
+                    for mat in materias_del_periodo["Materia"].unique():
+                        soldados_data = materias_del_periodo[materias_del_periodo["Materia"] == mat]
+                        lista_nombres = [f"{r['Nombre']} ({r['Cursada']})" for _, r in soldados_data.iterrows()]
+                        puntos_mat = PLAN_ESTUDIOS.get(mat, {}).get('puntos', 0)
+                        st.markdown(f"<div class='materia-card'><strong>{mat}</strong> ({puntos_mat} pts)<br><span style='color: #aaa;'>🎖️ Soldados: {', '.join(lista_nombres)}</span></div>", unsafe_allow_html=True)
+                else:
+                    st.write("Sin tropas en este periodo.")
+        else:
+            st.warning("No hay datos de cursada actual.")
 
     elif st.session_state.menu == "Proximas":
         st.header("📝 PRÓXIMOS OBJETIVOS")
