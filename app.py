@@ -82,10 +82,17 @@ def get_avatar_slug(usuario, n_aprobadas):
 
 def main():
     if "menu" not in st.session_state: st.session_state.menu = "Inicio"
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    df = conn.read(worksheet=0, ttl=0)
-    df.columns = [str(c).strip().capitalize() for c in df.columns]
     
+    # --- CONEXIÓN CON PARCHE ANTI-ERROR ---
+    try:
+        conn = st.connection("gsheets", type=GSheetsConnection)
+        df = conn.read(worksheet=0, ttl=10) # TTL 10 para estabilidad
+    except Exception as e:
+        st.error("❌ ERROR CRÍTICO DE CONEXIÓN")
+        st.warning("Google Sheets no responde. Verificá que el archivo esté compartido con el Service Account como 'Editor'.")
+        st.stop()
+
+    df.columns = [str(c).strip().capitalize() for c in df.columns]
     if "Nota" not in df.columns: df["Nota"] = ""
     if "Cursada" not in df.columns: df["Cursada"] = "Regular"
     
@@ -95,6 +102,7 @@ def main():
     
     if usuario == "Seleccionar...": return
 
+    # --- NAVEGACIÓN ---
     nav_cols = st.columns(4)
     if nav_cols[0].button("🏠 INICIO"): st.session_state.menu = "Inicio"; st.rerun()
     if nav_cols[1].button("📝 PRÓX."): st.session_state.menu = "Proximas"; st.rerun()
@@ -110,6 +118,7 @@ def main():
     puntos_logrados = sum([PLAN_ESTUDIOS.get(m, {}).get("puntos", 0) for m in aprobadas_df["Materia"]])
     promedio = pd.to_numeric(aprobadas_df["Nota"], errors='coerce').dropna().mean() if not aprobadas_df.empty else 0.0
 
+    # --- VISTA: INICIO ---
     if st.session_state.menu == "Inicio":
         col_av, col_cur = st.columns([1, 2])
         with col_av:
@@ -150,11 +159,11 @@ def main():
                             conn.update(worksheet=0, data=df)
                             st.session_state[f"aprobar_{materia}"] = False; st.rerun()
 
+    # --- VISTA: GRUPO ---
     elif st.session_state.menu == "Grupo":
         st.header("👥 DESPLIEGUE POR CUATRIMESTRE REAL")
         en_curso = df[df["Estado"].str.strip().str.capitalize() == "Cursando"].copy()
         
-        # Función para determinar cuatrimestre real (incluyendo contracursadas)
         def asignar_periodo_real(row):
             teorico = PLAN_ESTUDIOS.get(row["Materia"], {}).get("periodo", "1° Cuat.")
             if row["Cursada"] == "Contracursada":
@@ -174,10 +183,11 @@ def main():
                         puntos_mat = PLAN_ESTUDIOS.get(mat, {}).get('puntos', 0)
                         st.markdown(f"<div class='materia-card'><strong>{mat}</strong> ({puntos_mat} pts)<br><span style='color: #aaa;'>🎖️ Soldados: {', '.join(lista_nombres)}</span></div>", unsafe_allow_html=True)
                 else:
-                    st.write("Sin tropas en este periodo.")
+                    st.info("Sin actividad en este periodo.")
         else:
-            st.warning("No hay datos de cursada actual.")
+            st.warning("No hay soldados cursando actualmente.")
 
+    # --- VISTA: PROXIMAS ---
     elif st.session_state.menu == "Proximas":
         st.header("📝 PRÓXIMOS OBJETIVOS")
         ya_registradas = mis_datos["Materia"].tolist()
@@ -192,8 +202,10 @@ def main():
                 df = pd.concat([df, nueva], ignore_index=True)
                 conn.update(worksheet=0, data=df); st.rerun()
 
+    # --- VISTA: HISTORIAL ---
     elif st.session_state.menu == "Historial":
         st.header("✅ REGISTRO DE COMBATE")
         st.dataframe(mis_datos[["Materia", "Estado", "Nota", "Cursada"]].sort_values("Estado"), use_container_width=True, hide_index=True)
 
 if __name__ == "__main__": main()
+
