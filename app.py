@@ -70,6 +70,21 @@ st.markdown("""
         font-family: 'Press Start 2P', cursive;
         font-size: 18px !important;
     }
+
+    /* ── RESPONSIVE MOBILE ── */
+    @media (max-width: 640px) {
+        /* Columnas principales en mobile: apiladas */
+        [data-testid="column"] { min-width: 100% !important; }
+
+        /* Navegación: texto más chico */
+        .stButton > button { font-size: 11px !important; padding: 6px 4px !important; }
+
+        /* Header más chico */
+        .retro-font { font-size: 14px !important; }
+
+        /* Barras de progreso: texto más chico */
+        .hp-bar-text, .hp-bar-text-blue { font-size: 8px !important; }
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -127,6 +142,15 @@ SQUAD_MAP = {
     "Juli": "Nadia", "Kike": "Marco", "Cristian": "Tarma",
 }
 
+# Materias que se aprueban por cursada, sin final obligatorio
+MATERIAS_SIN_FINAL = {
+    "Seminario de Justicia y Derechos Humanos",
+    "Seminario de Pensamiento Nacional Latinoamericano",
+    "Seminario de Integración I",
+    "Taller de Comunicación y Producción de Textos",
+    "Taller de Práctica Preprofesional",
+}
+
 
 # ─────────────────────────────────────────────
 # 3. HELPERS
@@ -138,7 +162,12 @@ def get_avatar_path(usuario: str, n_aprobadas: int) -> str:
 
 
 def normalizar_estado(df: pd.DataFrame) -> pd.DataFrame:
-    df["Estado"] = df["Estado"].astype(str).str.strip().str.capitalize()
+    def _norm(v):
+        v = str(v).strip()
+        if v.lower() == "final":
+            return "Final"
+        return v.capitalize()
+    df["Estado"] = df["Estado"].apply(_norm)
     return df
 
 
@@ -170,6 +199,7 @@ def asegurar_columnas(df: pd.DataFrame) -> pd.DataFrame:
         "Nota": "", "Cursada": "Regular", "Estado": "Cursando",
         "Nota_parcial1": "", "Nota_parcial2": "",
         "Fecha_aprobacion": "", "Fecha_examen": "",
+        "Tiene_final": "",
     }
     for col, val in defaults.items():
         if col not in df.columns:
@@ -204,7 +234,7 @@ def estimar_egreso(aprobadas_df: pd.DataFrame):
 
 def _base_audio_script() -> str:
     """Script base con Web Audio API para todos los sonidos del juego."""
-    return """
+    return r"""
     <script>
     // ── Web Audio API context ──────────────────────────────────────────
     var _ctx = null;
@@ -437,6 +467,68 @@ def _base_audio_script() -> str:
             bs.start();
         }, 1150);
     }
+
+    // ── MISSION COMPLETE: Metal Slug style ───────────────────────────
+    function playMissionComplete() {
+        var ctx = getCtx();
+
+        function note(freq, startT, dur, type, vol) {
+            var o = ctx.createOscillator();
+            var g = ctx.createGain();
+            o.type = type || "square";
+            o.frequency.value = freq;
+            g.gain.setValueAtTime(0.0,  ctx.currentTime + startT);
+            g.gain.linearRampToValueAtTime(vol || 0.20, ctx.currentTime + startT + 0.01);
+            g.gain.setValueAtTime(vol || 0.20,          ctx.currentTime + startT + dur - 0.02);
+            g.gain.linearRampToValueAtTime(0.001,       ctx.currentTime + startT + dur);
+            o.connect(g); g.connect(ctx.destination);
+            o.start(ctx.currentTime + startT);
+            o.stop(ctx.currentTime  + startT + dur + 0.02);
+        }
+
+        function drum(startT, vol) {
+            var ctx2  = getCtx();
+            var bSize = Math.floor(ctx2.sampleRate * 0.06);
+            var buf   = ctx2.createBuffer(1, bSize, ctx2.sampleRate);
+            var data  = buf.getChannelData(0);
+            for (var i = 0; i < bSize; i++) {
+                data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bSize, 4);
+            }
+            setTimeout(function() {
+                var c   = getCtx();
+                var src = c.createBufferSource();
+                src.buffer = buf;
+                var g = c.createGain();
+                g.gain.value = vol || 0.6;
+                src.connect(g); g.connect(c.destination);
+                src.start();
+            }, startT * 1000);
+        }
+
+        // Jingle Metal Slug "MISSION COMPLETE" aproximado
+        // Fanfarria inicial
+        note(392, 0.00, 0.08, "square", 0.22);
+        note(523, 0.09, 0.08, "square", 0.22);
+        note(659, 0.18, 0.08, "square", 0.22);
+        note(784, 0.27, 0.18, "square", 0.25);
+        // Acorde de victoria
+        note(523, 0.50, 0.08, "square", 0.18);
+        note(659, 0.59, 0.08, "square", 0.18);
+        note(784, 0.68, 0.30, "square", 0.22);
+        note(1047,0.68, 0.30, "square", 0.15);
+        // Remate final glorioso
+        note(659, 1.05, 0.10, "square", 0.18);
+        note(784, 1.16, 0.10, "square", 0.20);
+        note(1047,1.27, 0.45, "square", 0.25);
+        note(1319,1.27, 0.45, "square", 0.15);
+        // Bombos
+        drum(0.00, 0.7);
+        drum(0.27, 0.5);
+        drum(0.50, 0.7);
+        drum(0.68, 0.5);
+        drum(1.05, 0.7);
+        drum(1.27, 0.8);
+    }
     </script>
     """
 
@@ -444,15 +536,15 @@ def _base_audio_script() -> str:
 def sound_html(sound: str) -> str:
     """
     Inyecta el script base + reproduce el sonido indicado.
-    sound: "gunshot" | "victory" | "click" | "delete" | "headshot" | "finishhim"
+    sound: "gunshot" | "click" | "delete" | "headshot" | "finishhim" | "missioncomplete"
     """
     fn_map = {
-        "gunshot":  "playGunshot()",
-        "victory":  "playVictory()",
-        "click":    "playClick()",
-        "delete":   "playDelete()",
-        "headshot": "playHeadshot()",
-        "finishhim":"playFinishHim()",
+        "gunshot":        "playGunshot()",
+        "click":          "playClick()",
+        "delete":         "playDelete()",
+        "headshot":       "playHeadshot()",
+        "finishhim":      "playFinishHim()",
+        "missioncomplete":"playMissionComplete()",
     }
     call = fn_map.get(sound, "playClick()")
     return f"""
@@ -461,26 +553,15 @@ def sound_html(sound: str) -> str:
     """
 
 
-def confetti_html(nota: int = 0) -> str:
-    """
-    Confetti + sonido según la nota:
-    - nota == 10  → HEADSHOT (CS) + confetti dorado
-    - cualquier aprobación → FINISH HIM (MK) + confetti normal
-    """
-    if nota == 10:
-        sonido_call = "playHeadshot();"
-        colors = "['#f1c40f','#f1c40f','#FFD700','#FFF8DC','#ff4b4b']"
-    else:
-        sonido_call = "playFinishHim();"
-        colors = "['#f1c40f','#ff4b4b','#3498db','#2ecc71']"
-
+def confetti_html() -> str:
+    """Confetti + MISSION COMPLETE al aprobar una materia."""
     return f"""
     {_base_audio_script()}
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script>
     (function() {{
-        {sonido_call}
-        var duration = 3000;
+        playMissionComplete();
+        var duration = 3500;
         var animationEnd = Date.now() + duration;
         var defaults = {{ startVelocity: 30, spread: 360, ticks: 60, zIndex: 9999 }};
         function randomInRange(min, max) {{ return Math.random() * (max - min) + min; }}
@@ -491,12 +572,12 @@ def confetti_html(nota: int = 0) -> str:
             confetti(Object.assign({{}}, defaults, {{
                 particleCount,
                 origin: {{ x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }},
-                colors: {colors}
+                colors: ['#f1c40f','#ff4b4b','#3498db','#2ecc71','#fff']
             }}));
             confetti(Object.assign({{}}, defaults, {{
                 particleCount,
                 origin: {{ x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }},
-                colors: {colors}
+                colors: ['#f1c40f','#ff4b4b','#3498db','#2ecc71','#fff']
             }}));
         }}, 250);
     }})();
@@ -742,22 +823,36 @@ def grafico_progreso_tiempo(aprobadas_df: pd.DataFrame):
 # 5. VISTAS
 # ─────────────────────────────────────────────
 
-def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df,
+def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_df,
                  puntos_logrados, promedio_simple, promedio_pond):
 
-    col_av, col_cur = st.columns([1, 2])
+    col_av, col_cur = st.columns([1, 3])
 
     with col_av:
         img_path = get_avatar_path(usuario, len(aprobadas_df))
         if os.path.exists(img_path):
-            st.image(img_path, width=150)
+            st.image(img_path, width=120)
         else:
             st.markdown("🎮")
 
-        st.metric("PUNTOS",   puntos_logrados)
-        st.metric("PROMEDIO", f"{promedio_simple:.2f}")
-        st.metric("POND.",    f"{promedio_pond:.2f}",
-                  help="Promedio ponderado por créditos de cada materia")
+        # Métricas en mini-tarjetas compactas
+        st.markdown(
+            f"""<div style='display:flex; flex-wrap:wrap; gap:8px; margin:8px 0;'>
+                <div style='background:#1a1c23; border-radius:6px; padding:8px 12px; flex:1; min-width:70px; text-align:center;'>
+                    <div style='color:#aaa; font-size:9px; font-family:monospace;'>PUNTOS</div>
+                    <div style='color:#f1c40f; font-size:16px; font-weight:bold;'>{puntos_logrados}</div>
+                </div>
+                <div style='background:#1a1c23; border-radius:6px; padding:8px 12px; flex:1; min-width:70px; text-align:center;'>
+                    <div style='color:#aaa; font-size:9px; font-family:monospace;'>PROM.</div>
+                    <div style='color:#3498db; font-size:16px; font-weight:bold;'>{promedio_simple:.2f}</div>
+                </div>
+                <div style='background:#1a1c23; border-radius:6px; padding:8px 12px; flex:1; min-width:70px; text-align:center;'>
+                    <div style='color:#aaa; font-size:9px; font-family:monospace;'>POND.</div>
+                    <div style='color:#2ecc71; font-size:16px; font-weight:bold;'>{promedio_pond:.2f}</div>
+                </div>
+            </div>""",
+            unsafe_allow_html=True,
+        )
 
         egreso = estimar_egreso(aprobadas_df)
         if egreso:
@@ -805,87 +900,193 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df,
         st.markdown("---")
         st.markdown("#### ⚔️ MATERIAS EN CURSO:")
 
-        if cursando_df.empty:
+        if cursando_df.empty and mis_datos[mis_datos["Estado"] == "Final"].empty:
             st.info("No estás cursando ninguna materia. ¡Inscribite en PRÓX.!")
         else:
-            for i, row in cursando_df.iterrows():
-                materia  = row["Materia"]
-                tipo_c   = row["Cursada"]
-                key_flag = f"aprobar_{i}_{materia}"
-                key_edit = f"editar_{i}_{materia}"
+            # ── Materias en Final (inscripto, esperando aprobar) ──────────
+            final_df = mis_datos[mis_datos["Estado"] == "Final"]
+            if not final_df.empty:
+                st.markdown("##### 📝 Inscripto a final:")
+                for i, row in final_df.iterrows():
+                    materia  = row["Materia"]
+                    tipo_c   = row["Cursada"]
+                    key_ap   = f"aprobar_final_{i}_{materia}"
 
-                c_btn_m, c_btn_edit, c_btn_del = st.columns([3, 1, 1])
+                    fecha_ex = str(row.get("Fecha_examen", "")).strip()
+                    dias     = dias_restantes(fecha_ex) if fecha_ex and fecha_ex not in ("", "nan", "NaT", "None") else None
+                    if dias is not None:
+                        badge = f"⚠️ {dias}d" if dias <= 7 else f"📅 {dias}d"
+                    else:
+                        badge = ""
 
-                if c_btn_m.button(f"✅ {materia} [{tipo_c}]", key=f"mision_{i}"):
-                    st.session_state[key_flag] = not st.session_state.get(key_flag, False)
-                    st.session_state[key_edit] = False
+                    st.markdown(
+                        f"""<div style='background:#0d1a2e; border-left:4px solid #3498db;
+                            border-radius:6px; padding:10px 14px; margin-bottom:4px;'>
+                            📝 <strong>{materia}</strong>
+                            <span style='color:#aaa; font-size:11px;'> [{tipo_c}] {badge}</span>
+                        </div>""",
+                        unsafe_allow_html=True,
+                    )
 
-                if c_btn_edit.button("✏️", key=f"edit_{i}", help="Editar parciales / fecha examen"):
-                    st.session_state[key_edit] = not st.session_state.get(key_edit, False)
-                    st.session_state[key_flag] = False
+                    bc1, bc2, _ = st.columns([2, 1, 4])
+                    if bc1.button("✅ Aprobé el final", key=f"apfinal_{i}", use_container_width=True):
+                        st.session_state[key_ap] = not st.session_state.get(key_ap, False)
+                    if bc2.button("🗑️", key=f"delfinal_{i}", use_container_width=True):
+                        idx_drop = df[(df["Nombre"] == usuario) & (df["Materia"] == materia)].index
+                        guardar_df(conn, df.drop(idx_drop).reset_index(drop=True))
+                        st.session_state["play_sound"] = "delete"
+                        st.rerun()
 
-                if c_btn_del.button("❌", key=f"del_{i}"):
-                    idx_drop = df[(df["Nombre"] == usuario) & (df["Materia"] == materia)].index
-                    guardar_df(conn, df.drop(idx_drop).reset_index(drop=True))
-                    st.session_state["play_sound"] = "delete"
-                    st.rerun()
+                    if st.session_state.get(key_ap, False):
+                        with st.form(key=f"formfinal_{i}"):
+                            nota_input = st.number_input("Nota final (4-10):", min_value=4, max_value=10, value=7)
+                            fecha_ap   = st.date_input("Fecha de aprobación:", value=date.today())
+                            if st.form_submit_button("🎖️ REGISTRAR VICTORIA", use_container_width=True):
+                                df.loc[
+                                    (df["Nombre"] == usuario) & (df["Materia"] == materia),
+                                    ["Estado", "Nota", "Fecha_aprobacion"]
+                                ] = ["Aprobada", nota_input, str(fecha_ap)]
+                                guardar_df(conn, df)
+                                st.session_state[key_ap]          = False
+                                st.session_state["show_confetti"] = True
+                                st.rerun()
 
-                # Formulario: registrar aprobación
-                if st.session_state.get(key_flag, False):
-                    with st.form(key=f"form_{i}"):
-                        nota_input  = st.number_input("Nota final (4-10):", min_value=4, max_value=10, value=7)
-                        fecha_ap    = st.date_input("Fecha de aprobación:", value=date.today())
-                        if st.form_submit_button("🎖️ REGISTRAR VICTORIA"):
-                            df.loc[
-                                (df["Nombre"] == usuario) & (df["Materia"] == materia),
-                                ["Estado", "Nota", "Fecha_aprobacion"]
-                            ] = ["Aprobada", nota_input, str(fecha_ap)]
-                            guardar_df(conn, df)
-                            st.session_state[key_flag]        = False
-                            st.session_state["show_confetti"] = True
-                            st.session_state["confetti_nota"] = int(nota_input)
-                            st.rerun()
+            # ── Materias cursando ─────────────────────────────────────────
+            if not cursando_df.empty:
+                st.markdown("##### 📘 Cursando:")
+                for i, row in cursando_df.iterrows():
+                    materia  = row["Materia"]
+                    tipo_c   = row["Cursada"]
+                    key_flag = f"aprobar_{i}_{materia}"
+                    key_edit = f"editar_{i}_{materia}"
 
-                # Formulario: editar parciales / fecha examen / tipo cursada
-                if st.session_state.get(key_edit, False):
-                    with st.form(key=f"editform_{i}"):
-                        st.markdown(f"**Editar: {materia}**")
-                        p1_act = pd.to_numeric(row.get("Nota_parcial1", ""), errors="coerce")
-                        p2_act = pd.to_numeric(row.get("Nota_parcial2", ""), errors="coerce")
-                        p1 = st.number_input("Nota parcial 1 (0 = sin nota):", 0, 10,
-                                             int(p1_act) if pd.notna(p1_act) else 0)
-                        p2 = st.number_input("Nota parcial 2 (0 = sin nota):", 0, 10,
-                                             int(p2_act) if pd.notna(p2_act) else 0)
-                        fecha_ex_act = str(row.get("Fecha_examen", "")).strip()
-                        try:
-                            fecha_ex_val = datetime.strptime(fecha_ex_act, "%Y-%m-%d").date()
-                        except Exception:
-                            fecha_ex_val = date.today()
-                        fecha_ex   = st.date_input("Fecha de examen final:", value=fecha_ex_val)
-                        nuevo_tipo = st.selectbox(
-                            "Tipo de cursada:",
-                            ["Regular", "Contracursada"],
-                            index=["Regular", "Contracursada"].index(tipo_c)
-                                  if tipo_c in ["Regular", "Contracursada"] else 0,
-                        )
-                        if st.form_submit_button("💾 GUARDAR"):
-                            mask = (df["Nombre"] == usuario) & (df["Materia"] == materia)
-                            df.loc[mask, "Nota_parcial1"] = p1 if p1 > 0 else ""
-                            df.loc[mask, "Nota_parcial2"] = p2 if p2 > 0 else ""
-                            df.loc[mask, "Fecha_examen"]  = str(fecha_ex)
-                            df.loc[mask, "Cursada"]       = nuevo_tipo
-                            guardar_df(conn, df)
-                            st.session_state[key_edit]    = False
-                            st.session_state["play_sound"] = "click"
-                            st.rerun()
+                    p1v = pd.to_numeric(row.get("Nota_parcial1", ""), errors="coerce")
+                    p2v = pd.to_numeric(row.get("Nota_parcial2", ""), errors="coerce")
+                    parciales_str = ""
+                    if pd.notna(p1v) or pd.notna(p2v):
+                        p1_str = f"P1:{int(p1v)}" if pd.notna(p1v) else "P1:-"
+                        p2_str = f"P2:{int(p2v)}" if pd.notna(p2v) else "P2:-"
+                        parciales_str = f" · {p1_str} {p2_str}"
 
-                # Mostrar parciales si los hay
-                p1v = pd.to_numeric(row.get("Nota_parcial1", ""), errors="coerce")
-                p2v = pd.to_numeric(row.get("Nota_parcial2", ""), errors="coerce")
-                if pd.notna(p1v) or pd.notna(p2v):
-                    p1_str = f"P1: {int(p1v)}" if pd.notna(p1v) else "P1: -"
-                    p2_str = f"P2: {int(p2v)}" if pd.notna(p2v) else "P2: -"
-                    st.caption(f"   {p1_str} | {p2_str}")
+                    sin_final = materia in MATERIAS_SIN_FINAL
+                    badge_tipo = "🔄" if tipo_c == "Contracursada" else "📘"
+
+                    st.markdown(
+                        f"""<div style='background:#1a1c23; border-left:4px solid #f1c40f;
+                            border-radius:6px; padding:10px 14px; margin-bottom:4px;'>
+                            {badge_tipo} <strong>{materia}</strong>
+                            <span style='color:#aaa; font-size:11px;'> [{tipo_c}]{parciales_str}</span>
+                            {"<span style='color:#2ecc71; font-size:10px;'> · Sin final</span>" if sin_final else ""}
+                        </div>""",
+                        unsafe_allow_html=True,
+                    )
+
+                    bc1, bc2, bc3, _ = st.columns([2, 1, 1, 2])
+                    if bc1.button("📋 Terminé de cursar", key=f"mision_{i}", use_container_width=True):
+                        st.session_state[key_flag] = not st.session_state.get(key_flag, False)
+                        st.session_state[key_edit] = False
+                    if bc2.button("✏️", key=f"edit_{i}", use_container_width=True, help="Editar parciales / fecha"):
+                        st.session_state[key_edit] = not st.session_state.get(key_edit, False)
+                        st.session_state[key_flag] = False
+                    if bc3.button("🗑️", key=f"del_{i}", use_container_width=True, help="Eliminar"):
+                        idx_drop = df[(df["Nombre"] == usuario) & (df["Materia"] == materia)].index
+                        guardar_df(conn, df.drop(idx_drop).reset_index(drop=True))
+                        st.session_state["play_sound"] = "delete"
+                        st.rerun()
+
+                    # Formulario: terminé de cursar → ¿tiene final?
+                    if st.session_state.get(key_flag, False):
+                        if sin_final:
+                            # Sin final: pedir nota y aprobar directo
+                            with st.form(key=f"form_{i}"):
+                                st.info("✅ Esta materia no tiene final. Ingresá la nota de cursada.")
+                                nota_input = st.number_input("Nota (4-10):", min_value=4, max_value=10, value=7)
+                                fecha_ap   = st.date_input("Fecha de aprobación:", value=date.today())
+                                if st.form_submit_button("🎖️ APROBAR", use_container_width=True):
+                                    df.loc[
+                                        (df["Nombre"] == usuario) & (df["Materia"] == materia),
+                                        ["Estado", "Nota", "Fecha_aprobacion"]
+                                    ] = ["Aprobada", nota_input, str(fecha_ap)]
+                                    guardar_df(conn, df)
+                                    st.session_state[key_flag]        = False
+                                    st.session_state["show_confetti"] = True
+                                    st.rerun()
+                        else:
+                            # Con final: preguntar si tiene o no
+                            tiene_final_key = f"tiene_final_{i}"
+                            st.markdown(
+                                "<div style='background:#1a1200; border-left:4px solid #f1c40f; "
+                                "border-radius:6px; padding:10px 14px; margin:4px 0;'>"
+                                "❓ <strong>¿Esta materia tiene examen final?</strong></div>",
+                                unsafe_allow_html=True,
+                            )
+                            col_si, col_no = st.columns(2)
+                            if col_si.button("✅ Sí, tiene final", key=f"si_{i}", use_container_width=True):
+                                df.loc[
+                                    (df["Nombre"] == usuario) & (df["Materia"] == materia),
+                                    "Estado"
+                                ] = "Final"
+                                guardar_df(conn, df)
+                                st.session_state[key_flag]     = False
+                                st.session_state["play_sound"] = "finishhim"
+                                st.rerun()
+                            if col_no.button("❌ No, apruebo por cursada", key=f"no_{i}", use_container_width=True):
+                                st.session_state[tiene_final_key] = "no"
+                                st.session_state[key_flag]        = False
+                                st.rerun()
+
+                            if st.session_state.get(tiene_final_key) == "no":
+                                with st.form(key=f"form_{i}"):
+                                    st.info("✅ Aprobada por cursada. Ingresá la nota.")
+                                    nota_input = st.number_input("Nota (4-10):", min_value=4, max_value=10, value=7)
+                                    fecha_ap   = st.date_input("Fecha:", value=date.today())
+                                    if st.form_submit_button("🎖️ APROBAR", use_container_width=True):
+                                        df.loc[
+                                            (df["Nombre"] == usuario) & (df["Materia"] == materia),
+                                            ["Estado", "Nota", "Fecha_aprobacion"]
+                                        ] = ["Aprobada", nota_input, str(fecha_ap)]
+                                        guardar_df(conn, df)
+                                        st.session_state[tiene_final_key]  = None
+                                        st.session_state["show_confetti"] = True
+                                        st.rerun()
+
+                    # Formulario: editar parciales / fecha examen
+                    if st.session_state.get(key_edit, False):
+                        with st.form(key=f"editform_{i}"):
+                            st.markdown(f"**✏️ Editar: {materia}**")
+                            p1_act = pd.to_numeric(row.get("Nota_parcial1", ""), errors="coerce")
+                            p2_act = pd.to_numeric(row.get("Nota_parcial2", ""), errors="coerce")
+                            col_p1, col_p2 = st.columns(2)
+                            p1 = col_p1.number_input("Parcial 1 (0=sin nota):", 0, 10,
+                                                      int(p1_act) if pd.notna(p1_act) else 0)
+                            p2 = col_p2.number_input("Parcial 2 (0=sin nota):", 0, 10,
+                                                      int(p2_act) if pd.notna(p2_act) else 0)
+                            fecha_ex_act = str(row.get("Fecha_examen", "")).strip()
+                            try:
+                                fecha_ex_val = datetime.strptime(fecha_ex_act, "%Y-%m-%d").date()
+                            except Exception:
+                                fecha_ex_val = date.today()
+                            fecha_ex   = st.date_input("Fecha de examen final:", value=fecha_ex_val)
+                            nuevo_tipo = st.selectbox(
+                                "Tipo de cursada:",
+                                ["Regular", "Contracursada"],
+                                index=["Regular", "Contracursada"].index(tipo_c)
+                                      if tipo_c in ["Regular", "Contracursada"] else 0,
+                            )
+                            if st.form_submit_button("💾 GUARDAR", use_container_width=True):
+                                mask = (df["Nombre"] == usuario) & (df["Materia"] == materia)
+                                df.loc[mask, "Nota_parcial1"] = p1 if p1 > 0 else ""
+                                df.loc[mask, "Nota_parcial2"] = p2 if p2 > 0 else ""
+                                df.loc[mask, "Fecha_examen"]  = str(fecha_ex)
+                                df.loc[mask, "Cursada"]       = nuevo_tipo
+                                guardar_df(conn, df)
+                                st.session_state[key_edit] = False
+                                # Headshot si algún parcial es 10
+                                if p1 == 10 or p2 == 10:
+                                    st.session_state["play_sound"] = "headshot"
+                                else:
+                                    st.session_state["play_sound"] = "click"
+                                st.rerun()
 
 
 def vista_grupo(df):
@@ -992,16 +1193,17 @@ def vista_historial(conn, df, usuario, mis_datos):
                 st.rerun()
 
 
-def vista_estadisticas(df, usuario, mis_datos, aprobadas_df, cursando_df,
+def vista_estadisticas(df, usuario, mis_datos, aprobadas_df, cursando_df, final_df,
                         puntos_logrados, promedio_simple, promedio_pond):
     st.header("📊 ANÁLISIS DE CAMPAÑA")
 
     # Métricas resumen
-    c1, c2, c3, c4 = st.columns(4)
+    c1, c2, c3, c4, c5 = st.columns(5)
     c1.metric("Aprobadas",  len(aprobadas_df))
     c2.metric("Cursando",   len(cursando_df))
-    c3.metric("Pendientes", TOTAL_MATERIAS - len(aprobadas_df) - len(cursando_df))
-    c4.metric("Créditos",   f"{puntos_logrados}/{CREDITOS_TOTAL_LICENCIATURA}")
+    c3.metric("En final",   len(final_df))
+    c4.metric("Pendientes", TOTAL_MATERIAS - len(aprobadas_df) - len(cursando_df) - len(final_df))
+    c5.metric("Créditos",   f"{puntos_logrados}/{CREDITOS_TOTAL_LICENCIATURA}")
 
     egreso = estimar_egreso(aprobadas_df)
     if egreso:
@@ -1113,8 +1315,6 @@ def main():
         st.session_state.menu = "Inicio"
     if "show_confetti" not in st.session_state:
         st.session_state.show_confetti = False
-    if "confetti_nota" not in st.session_state:
-        st.session_state.confetti_nota = 0
     if "play_sound" not in st.session_state:
         st.session_state.play_sound = None
 
@@ -1123,14 +1323,12 @@ def main():
     if df is None:
         st.stop()
 
-    # Confetti + sonido según nota
+    # MISSION COMPLETE + confetti al aprobar materia
     if st.session_state.show_confetti:
-        nota = st.session_state.get("confetti_nota", 0)
-        st.components.v1.html(confetti_html(nota), height=0)
+        st.components.v1.html(confetti_html(), height=0)
         st.session_state.show_confetti = False
-        st.session_state.confetti_nota = 0
 
-    # Sonidos para otras acciones (disparo, clic, borrar)
+    # Otros sonidos: disparo, headshot, finishhim, delete, click
     if st.session_state.play_sound:
         st.components.v1.html(sound_html(st.session_state.play_sound), height=0)
         st.session_state.play_sound = None
@@ -1166,6 +1364,7 @@ def main():
     mis_datos    = df[df["Nombre"] == usuario].copy()
     aprobadas_df = mis_datos[mis_datos["Estado"] == "Aprobada"]
     cursando_df  = mis_datos[mis_datos["Estado"] == "Cursando"]
+    final_df     = mis_datos[mis_datos["Estado"] == "Final"]
 
     puntos_logrados = sum(PLAN_ESTUDIOS.get(m, {}).get("puntos", 0) for m in aprobadas_df["Materia"])
     promedio_simple = (pd.to_numeric(aprobadas_df["Nota"], errors="coerce").dropna().mean()
@@ -1176,7 +1375,7 @@ def main():
     menu = st.session_state.menu
 
     if menu == "Inicio":
-        vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df,
+        vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_df,
                      puntos_logrados, promedio_simple, promedio_pond)
     elif menu == "Grupo":
         vista_grupo(df)
@@ -1185,7 +1384,7 @@ def main():
     elif menu == "Historial":
         vista_historial(conn, df, usuario, mis_datos)
     elif menu == "Stats":
-        vista_estadisticas(df, usuario, mis_datos, aprobadas_df, cursando_df,
+        vista_estadisticas(df, usuario, mis_datos, aprobadas_df, cursando_df, final_df,
                            puntos_logrados, promedio_simple, promedio_pond)
 
 
