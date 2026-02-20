@@ -310,6 +310,133 @@ def _base_audio_script() -> str:
         osc.start();
         osc.stop(ctx.currentTime + 0.22);
     }
+
+    // ── HEADSHOT: CS-style (disparo seco + pitch descendente brusco) ──
+    function playHeadshot() {
+        var ctx = getCtx();
+
+        // 1. Disparo seco (ruido blanco corto y agresivo)
+        var bufSize = ctx.sampleRate * 0.12;
+        var buf  = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+        var data = buf.getChannelData(0);
+        for (var i = 0; i < bufSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 5);
+        }
+        var src    = ctx.createBufferSource();
+        src.buffer = buf;
+        var filt   = ctx.createBiquadFilter();
+        filt.type  = "bandpass";
+        filt.frequency.value = 1200;
+        filt.Q.value = 0.8;
+        var g1 = ctx.createGain();
+        g1.gain.setValueAtTime(2.0, ctx.currentTime);
+        g1.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+        src.connect(filt); filt.connect(g1); g1.connect(ctx.destination);
+        src.start();
+
+        // 2. "Ping" metálico de headshot (tono descendente brusco)
+        setTimeout(function() {
+            var ctx2 = getCtx();
+            var osc  = ctx2.createOscillator();
+            var g2   = ctx2.createGain();
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(1800, ctx2.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(400, ctx2.currentTime + 0.18);
+            g2.gain.setValueAtTime(0.5, ctx2.currentTime);
+            g2.gain.exponentialRampToValueAtTime(0.001, ctx2.currentTime + 0.18);
+            osc.connect(g2); g2.connect(ctx2.destination);
+            osc.start(); osc.stop(ctx2.currentTime + 0.2);
+        }, 40);
+
+        // 3. "HEADSHOT" sintetizado: 3 beeps descendentes cortos
+        var beeps = [
+            { f: 880, t: 0.18 },
+            { f: 660, t: 0.28 },
+            { f: 440, t: 0.38 },
+        ];
+        beeps.forEach(function(b) {
+            setTimeout(function() {
+                var ctx3 = getCtx();
+                var o = ctx3.createOscillator();
+                var g = ctx3.createGain();
+                o.type = "square";
+                o.frequency.value = b.f;
+                g.gain.setValueAtTime(0.2, ctx3.currentTime);
+                g.gain.exponentialRampToValueAtTime(0.001, ctx3.currentTime + 0.07);
+                o.connect(g); g.connect(ctx3.destination);
+                o.start(); o.stop(ctx3.currentTime + 0.08);
+            }, b.t * 1000);
+        });
+    }
+
+    // ── FINISH HIM: Mortal Kombat-style ───────────────────────────────
+    function playFinishHim() {
+        var ctx = getCtx();
+
+        // Reverb simple con ConvolverNode
+        function makeReverb(ctx, seconds) {
+            var rate    = ctx.sampleRate;
+            var length  = rate * seconds;
+            var impulse = ctx.createBuffer(2, length, rate);
+            for (var c = 0; c < 2; c++) {
+                var ch = impulse.getChannelData(c);
+                for (var i = 0; i < length; i++) {
+                    ch[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, 2);
+                }
+            }
+            var conv = ctx.createConvolver();
+            conv.buffer = impulse;
+            return conv;
+        }
+
+        var reverb = makeReverb(ctx, 1.2);
+        var master = ctx.createGain();
+        master.gain.value = 0.7;
+        reverb.connect(master);
+        master.connect(ctx.destination);
+
+        function note(freq, startT, dur, type) {
+            type = type || "sawtooth";
+            var o = ctx.createOscillator();
+            var g = ctx.createGain();
+            o.type = type;
+            o.frequency.setValueAtTime(freq, ctx.currentTime + startT);
+            g.gain.setValueAtTime(0.0,  ctx.currentTime + startT);
+            g.gain.linearRampToValueAtTime(0.35, ctx.currentTime + startT + 0.02);
+            g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + startT + dur);
+            o.connect(g); g.connect(reverb); g.connect(ctx.destination);
+            o.start(ctx.currentTime + startT);
+            o.stop(ctx.currentTime + startT + dur + 0.05);
+        }
+
+        // "FI-NISH HIM" — melodía icónica aproximada
+        // Frase 1: FI - NISH
+        note(220, 0.00, 0.18, "sawtooth");   // FI
+        note(196, 0.00, 0.18, "square");
+        note(165, 0.20, 0.18, "sawtooth");   // NISH
+        note(147, 0.20, 0.18, "square");
+        // Pausa dramática
+        // Frase 2: HIM (nota baja, sostenida)
+        note(110, 0.50, 0.55, "sawtooth");
+        note(98,  0.50, 0.55, "square");
+        // Golpe final percusivo
+        setTimeout(function() {
+            var ctx2 = getCtx();
+            var bSize = ctx2.sampleRate * 0.08;
+            var bbuf  = ctx2.createBuffer(1, bSize, ctx2.sampleRate);
+            var bdata = bbuf.getChannelData(0);
+            for (var i = 0; i < bSize; i++) {
+                bdata[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bSize, 2);
+            }
+            var bs = ctx2.createBufferSource();
+            bs.buffer = bbuf;
+            var bg = ctx2.createGain();
+            bg.gain.setValueAtTime(1.5, ctx2.currentTime);
+            bg.gain.exponentialRampToValueAtTime(0.001, ctx2.currentTime + 0.08);
+            bs.connect(bg); bg.connect(ctx2.destination);
+            bs.start();
+        }, 1150);
+    }
     </script>
     """
 
@@ -317,13 +444,15 @@ def _base_audio_script() -> str:
 def sound_html(sound: str) -> str:
     """
     Inyecta el script base + reproduce el sonido indicado.
-    sound: "gunshot" | "victory" | "click" | "delete"
+    sound: "gunshot" | "victory" | "click" | "delete" | "headshot" | "finishhim"
     """
     fn_map = {
-        "gunshot": "playGunshot()",
-        "victory": "playVictory()",
-        "click":   "playClick()",
-        "delete":  "playDelete()",
+        "gunshot":  "playGunshot()",
+        "victory":  "playVictory()",
+        "click":    "playClick()",
+        "delete":   "playDelete()",
+        "headshot": "playHeadshot()",
+        "finishhim":"playFinishHim()",
     }
     call = fn_map.get(sound, "playClick()")
     return f"""
@@ -332,14 +461,25 @@ def sound_html(sound: str) -> str:
     """
 
 
-def confetti_html() -> str:
-    """Confetti + fanfarria de victoria."""
+def confetti_html(nota: int = 0) -> str:
+    """
+    Confetti + sonido según la nota:
+    - nota == 10  → HEADSHOT (CS) + confetti dorado
+    - cualquier aprobación → FINISH HIM (MK) + confetti normal
+    """
+    if nota == 10:
+        sonido_call = "playHeadshot();"
+        colors = "['#f1c40f','#f1c40f','#FFD700','#FFF8DC','#ff4b4b']"
+    else:
+        sonido_call = "playFinishHim();"
+        colors = "['#f1c40f','#ff4b4b','#3498db','#2ecc71']"
+
     return f"""
     {_base_audio_script()}
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script>
     (function() {{
-        playVictory();
+        {sonido_call}
         var duration = 3000;
         var animationEnd = Date.now() + duration;
         var defaults = {{ startVelocity: 30, spread: 360, ticks: 60, zIndex: 9999 }};
@@ -351,12 +491,12 @@ def confetti_html() -> str:
             confetti(Object.assign({{}}, defaults, {{
                 particleCount,
                 origin: {{ x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }},
-                colors: ['#f1c40f','#ff4b4b','#3498db','#2ecc71']
+                colors: {colors}
             }}));
             confetti(Object.assign({{}}, defaults, {{
                 particleCount,
                 origin: {{ x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }},
-                colors: ['#f1c40f','#ff4b4b','#3498db','#2ecc71']
+                colors: {colors}
             }}));
         }}, 250);
     }})();
@@ -703,7 +843,7 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df,
                             guardar_df(conn, df)
                             st.session_state[key_flag]        = False
                             st.session_state["show_confetti"] = True
-                            # confetti ya incluye la fanfarria, no necesita play_sound
+                            st.session_state["confetti_nota"] = int(nota_input)
                             st.rerun()
 
                 # Formulario: editar parciales / fecha examen / tipo cursada
@@ -973,6 +1113,8 @@ def main():
         st.session_state.menu = "Inicio"
     if "show_confetti" not in st.session_state:
         st.session_state.show_confetti = False
+    if "confetti_nota" not in st.session_state:
+        st.session_state.confetti_nota = 0
     if "play_sound" not in st.session_state:
         st.session_state.play_sound = None
 
@@ -981,10 +1123,12 @@ def main():
     if df is None:
         st.stop()
 
-    # Confetti + fanfarria al registrar victoria
+    # Confetti + sonido según nota
     if st.session_state.show_confetti:
-        st.components.v1.html(confetti_html(), height=0)
+        nota = st.session_state.get("confetti_nota", 0)
+        st.components.v1.html(confetti_html(nota), height=0)
         st.session_state.show_confetti = False
+        st.session_state.confetti_nota = 0
 
     # Sonidos para otras acciones (disparo, clic, borrar)
     if st.session_state.play_sound:
