@@ -162,6 +162,7 @@ def asignar_periodo_real(materia: str, cursada: str) -> str:
 
 def guardar_df(conn, df: pd.DataFrame):
     conn.update(worksheet=0, data=df)
+    st.cache_data.clear()
 
 
 def asegurar_columnas(df: pd.DataFrame) -> pd.DataFrame:
@@ -946,9 +947,10 @@ def get_connection():
     return st.connection("gsheets", type=GSheetsConnection)
 
 
-def cargar_datos(conn):
+@st.cache_data(ttl=60)
+def cargar_datos(_conn) -> pd.DataFrame | None:
     try:
-        df = conn.read(worksheet=0, ttl=60)
+        df = _conn.read(worksheet=0, ttl=0)
         df.columns = [str(c).strip().capitalize() for c in df.columns]
         df = asegurar_columnas(df)
         df = normalizar_estado(df)
