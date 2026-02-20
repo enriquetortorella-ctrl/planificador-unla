@@ -201,31 +201,164 @@ def estimar_egreso(aprobadas_df: pd.DataFrame):
     return fecha_est.strftime("%B %Y")
 
 
-def confetti_html() -> str:
+def _base_audio_script() -> str:
+    """Script base con Web Audio API para todos los sonidos del juego."""
     return """
+    <script>
+    // ── Web Audio API context ──────────────────────────────────────────
+    var _ctx = null;
+    function getCtx() {
+        if (!_ctx) _ctx = new (window.AudioContext || window.webkitAudioContext)();
+        return _ctx;
+    }
+
+    // ── DISPARO: ruido blanco con envolvente rápida ────────────────────
+    function playGunshot() {
+        var ctx = getCtx();
+        var bufSize = ctx.sampleRate * 0.18;
+        var buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+        var data = buf.getChannelData(0);
+        for (var i = 0; i < bufSize; i++) {
+            data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 3.5);
+        }
+        // Cuerpo del disparo
+        var src = ctx.createBufferSource();
+        src.buffer = buf;
+        var gain = ctx.createGain();
+        gain.gain.setValueAtTime(1.4, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.18);
+        var filter = ctx.createBiquadFilter();
+        filter.type = "lowpass";
+        filter.frequency.setValueAtTime(1800, ctx.currentTime);
+        filter.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.18);
+        src.connect(filter);
+        filter.connect(gain);
+        gain.connect(ctx.destination);
+        src.start();
+        // Casquillo metálico
+        setTimeout(function() {
+            var ctx2 = getCtx();
+            var osc = ctx2.createOscillator();
+            var g2  = ctx2.createGain();
+            osc.type = "triangle";
+            osc.frequency.setValueAtTime(900, ctx2.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(300, ctx2.currentTime + 0.12);
+            g2.gain.setValueAtTime(0.25, ctx2.currentTime);
+            g2.gain.exponentialRampToValueAtTime(0.001, ctx2.currentTime + 0.12);
+            osc.connect(g2);
+            g2.connect(ctx2.destination);
+            osc.start();
+            osc.stop(ctx2.currentTime + 0.12);
+        }, 80);
+    }
+
+    // ── VICTORIA: fanfarria épica ──────────────────────────────────────
+    function playVictory() {
+        var ctx = getCtx();
+        var notes = [
+            { f: 523, t: 0.00, d: 0.12 },
+            { f: 659, t: 0.10, d: 0.12 },
+            { f: 784, t: 0.20, d: 0.12 },
+            { f: 1047, t: 0.30, d: 0.30 },
+            { f: 880, t: 0.32, d: 0.12 },
+            { f: 1047, t: 0.50, d: 0.40 },
+        ];
+        notes.forEach(function(n) {
+            var osc  = ctx.createOscillator();
+            var gain = ctx.createGain();
+            osc.type = "square";
+            osc.frequency.value = n.f;
+            gain.gain.setValueAtTime(0.0, ctx.currentTime + n.t);
+            gain.gain.linearRampToValueAtTime(0.18, ctx.currentTime + n.t + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + n.t + n.d);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(ctx.currentTime + n.t);
+            osc.stop(ctx.currentTime + n.t + n.d + 0.05);
+        });
+    }
+
+    // ── CLIC RETRO: bip corto ─────────────────────────────────────────
+    function playClick() {
+        var ctx  = getCtx();
+        var osc  = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.type = "square";
+        osc.frequency.setValueAtTime(440, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(220, ctx.currentTime + 0.06);
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.08);
+    }
+
+    // ── BORRAR: sonido descendente ────────────────────────────────────
+    function playDelete() {
+        var ctx  = getCtx();
+        var osc  = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(300, ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(80, ctx.currentTime + 0.2);
+        gain.gain.setValueAtTime(0.15, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.2);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.22);
+    }
+    </script>
+    """
+
+
+def sound_html(sound: str) -> str:
+    """
+    Inyecta el script base + reproduce el sonido indicado.
+    sound: "gunshot" | "victory" | "click" | "delete"
+    """
+    fn_map = {
+        "gunshot": "playGunshot()",
+        "victory": "playVictory()",
+        "click":   "playClick()",
+        "delete":  "playDelete()",
+    }
+    call = fn_map.get(sound, "playClick()")
+    return f"""
+    {_base_audio_script()}
+    <script>(function(){{ {call} }})();</script>
+    """
+
+
+def confetti_html() -> str:
+    """Confetti + fanfarria de victoria."""
+    return f"""
+    {_base_audio_script()}
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
     <script>
-    (function() {
+    (function() {{
+        playVictory();
         var duration = 3000;
         var animationEnd = Date.now() + duration;
-        var defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 9999 };
-        function randomInRange(min, max) { return Math.random() * (max - min) + min; }
-        var interval = setInterval(function() {
+        var defaults = {{ startVelocity: 30, spread: 360, ticks: 60, zIndex: 9999 }};
+        function randomInRange(min, max) {{ return Math.random() * (max - min) + min; }}
+        var interval = setInterval(function() {{
             var timeLeft = animationEnd - Date.now();
             if (timeLeft <= 0) return clearInterval(interval);
             var particleCount = 50 * (timeLeft / duration);
-            confetti(Object.assign({}, defaults, {
+            confetti(Object.assign({{}}, defaults, {{
                 particleCount,
-                origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 },
+                origin: {{ x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }},
                 colors: ['#f1c40f','#ff4b4b','#3498db','#2ecc71']
-            }));
-            confetti(Object.assign({}, defaults, {
+            }}));
+            confetti(Object.assign({{}}, defaults, {{
                 particleCount,
-                origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 },
+                origin: {{ x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }},
                 colors: ['#f1c40f','#ff4b4b','#3498db','#2ecc71']
-            }));
-        }, 250);
-    })();
+            }}));
+        }}, 250);
+    }})();
     </script>
     """
 
@@ -245,91 +378,159 @@ def _get_examenes_proximos(mis_datos: pd.DataFrame) -> list:
 # ─────────────────────────────────────────────
 # 4. GRÁFICOS
 # ─────────────────────────────────────────────
-def grafico_arbol_correlativas(aprobadas: list, cursando: list) -> go.Figure:
-    materias = list(PLAN_ESTUDIOS.keys())
+def arbol_correlativas_html(aprobadas: list, cursando: list) -> str:
+    """
+    Genera un grafo interactivo con vis.js:
+    - Zoom y pan con touch (funciona en mobile)
+    - Layout jerárquico de izquierda a derecha
+    - Nodos con color según estado
+    - Tooltip con nombre completo, créditos y correlativas
+    """
+    import json as _json
 
-    def get_capa(m, visitados=None):
-        if visitados is None:
-            visitados = set()
-        if m in visitados:
-            return 0
-        visitados.add(m)
-        deps = PLAN_ESTUDIOS[m]["correlativas"]
-        if not deps:
-            return 0
-        return 1 + max(get_capa(d, visitados.copy()) for d in deps)
+    nodes = []
+    edges = []
 
-    capas = {m: get_capa(m) for m in materias}
+    for idx, (m, info) in enumerate(PLAN_ESTUDIOS.items()):
+        if m in aprobadas:
+            color = {"background": "#2ecc71", "border": "#27ae60", "highlight": {"background": "#58d68d", "border": "#27ae60"}}
+            font_color = "#0b0d11"
+        elif m in cursando:
+            color = {"background": "#f1c40f", "border": "#d4ac0d", "highlight": {"background": "#f4d03f", "border": "#d4ac0d"}}
+            font_color = "#0b0d11"
+        elif all(c in aprobadas for c in info["correlativas"]):
+            color = {"background": "#3498db", "border": "#2980b9", "highlight": {"background": "#5dade2", "border": "#2980b9"}}
+            font_color = "#ffffff"
+        else:
+            color = {"background": "#2c2f36", "border": "#555", "highlight": {"background": "#3d4147", "border": "#777"}}
+            font_color = "#aaaaaa"
 
-    capa_grupos = {}
-    for m, c in capas.items():
-        capa_grupos.setdefault(c, []).append(m)
+        pts  = info["puntos"]
+        cors = ", ".join(info["correlativas"]) or "Ninguna"
+        # Etiqueta corta para el nodo
+        palabras = m.split()
+        label = " ".join(palabras[:3]) + ("\n" + " ".join(palabras[3:6]) if len(palabras) > 3 else "")
 
-    pos = {}
-    for capa, mats in capa_grupos.items():
-        for j, m in enumerate(mats):
-            pos[m] = (capa * 3.0, j * 2.0 - len(mats) * 1.0)
+        nodes.append({
+            "id":    idx,
+            "label": label,
+            "title": f"<b>{m}</b><br>Créditos: {pts}<br>Requiere: {cors}",
+            "color": color,
+            "font":  {"color": font_color, "size": 13, "face": "monospace"},
+            "shape": "box",
+            "margin": 8,
+            "shadow": True,
+        })
 
-    edge_x, edge_y = [], []
+    materia_idx = {m: i for i, m in enumerate(PLAN_ESTUDIOS.keys())}
     for m, info in PLAN_ESTUDIOS.items():
         for cor in info["correlativas"]:
-            x0, y0 = pos[cor]
-            x1, y1 = pos[m]
-            edge_x += [x0, x1, None]
-            edge_y += [y0, y1, None]
+            edges.append({
+                "from":   materia_idx[cor],
+                "to":     materia_idx[m],
+                "arrows": "to",
+                "color":  {"color": "#555", "highlight": "#f1c40f"},
+                "width":  2,
+                "smooth": {"type": "cubicBezier", "forceDirection": "horizontal"},
+            })
 
-    colores, simbolos, textos_hover = [], [], []
-    for m in materias:
-        if m in aprobadas:
-            colores.append("#2ecc71")
-            simbolos.append("circle")
-        elif m in cursando:
-            colores.append("#f1c40f")
-            simbolos.append("diamond")
-        elif all(c in aprobadas for c in PLAN_ESTUDIOS[m]["correlativas"]):
-            colores.append("#3498db")
-            simbolos.append("circle")
-        else:
-            colores.append("#555")
-            simbolos.append("circle")
-        pts  = PLAN_ESTUDIOS[m]["puntos"]
-        cors = ", ".join(PLAN_ESTUDIOS[m]["correlativas"]) or "Ninguna"
-        textos_hover.append(f"<b>{m}</b><br>Créditos: {pts}<br>Correlativas: {cors}")
+    nodes_json = _json.dumps(nodes)
+    edges_json = _json.dumps(edges)
 
-    node_x = [pos[m][0] for m in materias]
-    node_y = [pos[m][1] for m in materias]
+    return f"""
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.css"/>
+<style>
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  body {{ background: #0b0d11; overflow: hidden; }}
+  #graph {{
+    width: 100%;
+    height: 600px;
+    background: #0b0d11;
+    border: 1px solid #333;
+    border-radius: 8px;
+  }}
+  .vis-tooltip {{
+    background: #1a1c23 !important;
+    border: 1px solid #444 !important;
+    color: #e0e0e0 !important;
+    font-family: monospace !important;
+    font-size: 13px !important;
+    padding: 8px 12px !important;
+    border-radius: 6px !important;
+    max-width: 250px !important;
+  }}
+  #hint {{
+    position: absolute;
+    bottom: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: #555;
+    font-size: 11px;
+    font-family: monospace;
+    pointer-events: none;
+    white-space: nowrap;
+  }}
+</style>
+</head>
+<body>
+<div style="position:relative;">
+  <div id="graph"></div>
+  <div id="hint">📱 Pellizco para zoom · Arrastrá para mover</div>
+</div>
+<script>
+  var nodes = new vis.DataSet({nodes_json});
+  var edges = new vis.DataSet({edges_json});
 
-    labels = []
-    for m in materias:
-        palabras = m.split()
-        labels.append(" ".join(palabras[:2]) + ("…" if len(palabras) > 2 else ""))
+  var options = {{
+    layout: {{
+      hierarchical: {{
+        enabled: true,
+        direction: "LR",
+        sortMethod: "directed",
+        levelSeparation: 220,
+        nodeSpacing: 90,
+        treeSpacing: 150,
+        blockShifting: true,
+        edgeMinimization: true,
+        parentCentralization: true,
+      }}
+    }},
+    physics: {{ enabled: false }},
+    interaction: {{
+      dragNodes: false,
+      dragView: true,
+      zoomView: true,
+      hover: true,
+      tooltipDelay: 100,
+      navigationButtons: false,
+      keyboard: false,
+    }},
+    nodes: {{
+      borderWidth: 2,
+      borderWidthSelected: 3,
+    }},
+    edges: {{
+      selectionWidth: 3,
+    }},
+  }};
 
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=edge_x, y=edge_y, mode="lines",
-        line=dict(color="#444", width=1.5),
-        hoverinfo="none", showlegend=False,
-    ))
-    fig.add_trace(go.Scatter(
-        x=node_x, y=node_y, mode="markers+text",
-        marker=dict(size=22, color=colores, symbol=simbolos,
-                    line=dict(color="#0b0d11", width=2)),
-        text=labels,
-        textposition="top center",
-        textfont=dict(size=9, color="#e0e0e0"),
-        hovertext=textos_hover,
-        hoverinfo="text",
-        showlegend=False,
-    ))
-    fig.update_layout(
-        paper_bgcolor="#0b0d11", plot_bgcolor="#0b0d11",
-        font=dict(color="#e0e0e0"),
-        height=700,
-        margin=dict(l=20, r=20, t=20, b=20),
-        xaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-        yaxis=dict(showgrid=False, zeroline=False, showticklabels=False),
-    )
-    return fig
+  var container = document.getElementById("graph");
+  var network   = new vis.Network(container, {{ nodes: nodes, edges: edges }}, options);
+
+  // Ajuste automático al cargar
+  network.once("stabilized", function() {{
+    network.fit({{ animation: {{ duration: 600, easingFunction: "easeInOutQuad" }} }});
+  }});
+  network.fit();
+</script>
+</body>
+</html>
+"""
 
 
 def grafico_radar(aprobadas_df: pd.DataFrame) -> go.Figure:
@@ -485,6 +686,7 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df,
                 if c_btn_del.button("❌", key=f"del_{i}"):
                     idx_drop = df[(df["Nombre"] == usuario) & (df["Materia"] == materia)].index
                     guardar_df(conn, df.drop(idx_drop).reset_index(drop=True))
+                    st.session_state["play_sound"] = "delete"
                     st.rerun()
 
                 # Formulario: registrar aprobación
@@ -500,6 +702,7 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df,
                             guardar_df(conn, df)
                             st.session_state[key_flag]        = False
                             st.session_state["show_confetti"] = True
+                            # confetti ya incluye la fanfarria, no necesita play_sound
                             st.rerun()
 
                 # Formulario: editar parciales / fecha examen / tipo cursada
@@ -531,7 +734,8 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df,
                             df.loc[mask, "Fecha_examen"]  = str(fecha_ex)
                             df.loc[mask, "Cursada"]       = nuevo_tipo
                             guardar_df(conn, df)
-                            st.session_state[key_edit] = False
+                            st.session_state[key_edit]    = False
+                            st.session_state["play_sound"] = "click"
                             st.rerun()
 
                 # Mostrar parciales si los hay
@@ -608,6 +812,7 @@ def vista_proximas(conn, df, usuario, mis_datos, aprobadas_df):
                     "Fecha_aprobacion": "", "Fecha_examen": "",
                 }])
                 guardar_df(conn, pd.concat([df, nueva], ignore_index=True))
+                st.session_state["play_sound"] = "gunshot"
                 st.rerun()
 
     if bloqueadas:
@@ -641,6 +846,7 @@ def vista_historial(conn, df, usuario, mis_datos):
                 df.loc[mask, "Nota"]             = nueva_nota
                 df.loc[mask, "Fecha_aprobacion"] = str(nueva_fecha)
                 guardar_df(conn, df)
+                st.session_state["play_sound"] = "click"
                 st.success(f"✅ {mat_sel} actualizada.")
                 st.rerun()
 
@@ -696,13 +902,11 @@ def vista_estadisticas(df, usuario, mis_datos, aprobadas_df, cursando_df,
         "<span>🔵 Disponible</span><span>⚫ Bloqueada</span></div>",
         unsafe_allow_html=True,
     )
-    st.plotly_chart(
-        grafico_arbol_correlativas(
-            aprobadas_df["Materia"].tolist(),
-            cursando_df["Materia"].tolist(),
-        ),
-        use_container_width=True,
+    html_grafo = arbol_correlativas_html(
+        aprobadas_df["Materia"].tolist(),
+        cursando_df["Materia"].tolist(),
     )
+    st.components.v1.html(html_grafo, height=630, scrolling=False)
 
     st.markdown("---")
 
@@ -767,16 +971,23 @@ def main():
         st.session_state.menu = "Inicio"
     if "show_confetti" not in st.session_state:
         st.session_state.show_confetti = False
+    if "play_sound" not in st.session_state:
+        st.session_state.play_sound = None
 
     conn = get_connection()
     df   = cargar_datos(conn)
     if df is None:
         st.stop()
 
-    # Confetti al registrar victoria
+    # Confetti + fanfarria al registrar victoria
     if st.session_state.show_confetti:
         st.components.v1.html(confetti_html(), height=0)
         st.session_state.show_confetti = False
+
+    # Sonidos para otras acciones (disparo, clic, borrar)
+    if st.session_state.play_sound:
+        st.components.v1.html(sound_html(st.session_state.play_sound), height=0)
+        st.session_state.play_sound = None
 
     # Header
     st.markdown(
