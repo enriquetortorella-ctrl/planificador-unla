@@ -920,11 +920,11 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
                         badge = ""
 
                     st.markdown(
-                        f"""<div style='background:#0d1a2e; border-left:4px solid #3498db;
-                            border-radius:6px; padding:10px 14px; margin-bottom:4px;'>
-                            📝 <strong>{materia}</strong>
-                            <span style='color:#aaa; font-size:11px;'> [{tipo_c}] {badge}</span>
-                        </div>""",
+                        f"<div style='background:#0d1a2e; border-left:4px solid #3498db; "
+                        f"border-radius:6px; padding:10px 14px; margin-bottom:4px;'>"
+                        f"📝 <strong>{materia}</strong> "
+                        f"<span style='color:#aaa; font-size:11px;'>[{tipo_c}] {badge}</span>"
+                        f"</div>",
                         unsafe_allow_html=True,
                     )
 
@@ -970,14 +970,14 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
 
                     sin_final = materia in MATERIAS_SIN_FINAL
                     badge_tipo = "🔄" if tipo_c == "Contracursada" else "📘"
+                    sin_final_badge = "<span style='color:#2ecc71; font-size:10px;'> · Sin final</span>" if sin_final else ""
 
                     st.markdown(
-                        f"""<div style='background:#1a1c23; border-left:4px solid #f1c40f;
-                            border-radius:6px; padding:10px 14px; margin-bottom:4px;'>
-                            {badge_tipo} <strong>{materia}</strong>
-                            <span style='color:#aaa; font-size:11px;'> [{tipo_c}]{parciales_str}</span>
-                            {"<span style='color:#2ecc71; font-size:10px;'> · Sin final</span>" if sin_final else ""}
-                        </div>""",
+                        f"<div style='background:#1a1c23; border-left:4px solid #f1c40f; "
+                        f"border-radius:6px; padding:10px 14px; margin-bottom:4px;'>"
+                        f"{badge_tipo} <strong>{materia}</strong> "
+                        f"<span style='color:#aaa; font-size:11px;'>[{tipo_c}]{parciales_str}</span>"
+                        f"{sin_final_badge}</div>",
                         unsafe_allow_html=True,
                     )
 
