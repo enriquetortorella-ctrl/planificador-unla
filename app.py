@@ -190,9 +190,22 @@ def asignar_periodo_real(materia: str, cursada: str) -> str:
 
 
 def guardar_df(conn, df: pd.DataFrame):
-    conn.update(worksheet=0, data=df)
-    st.cache_data.clear()
+    # 🛡️ FUSIBLE DE SEGURIDAD: Si el DF está vacío, no toca el Sheet
+    if df.empty or len(df.columns) < 2:
+        st.error("🚨 ATENCIÓN: Se intentó guardar una base de datos vacía. Operación cancelada para proteger el archivo.")
+        return 
 
+    try:
+        # Limpiamos nombres de columnas para que siempre coincidan
+        df.columns = [str(c).strip().capitalize() for c in df.columns]
+        
+        # Guardamos en Google Sheets
+        conn.update(worksheet=0, data=df)
+        
+        # Limpiamos la memoria para que el cambio se vea al instante
+        st.cache_data.clear()
+    except Exception as e:
+        st.error(f"⚠️ Error al sincronizar con Google Sheets: {e}")
 
 def asegurar_columnas(df: pd.DataFrame) -> pd.DataFrame:
     defaults = {
@@ -1390,3 +1403,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
