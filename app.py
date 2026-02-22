@@ -878,6 +878,7 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
         st.link_button("📂 DRIVE SQUAD",  "https://drive.google.com/drive/folders/1C7LQskupjeW2sO2wnD_upyYnuxip4oqs", use_container_width=True)
         st.link_button("🏛️ SIU GUARANÍ", "https://estudiantes.unla.edu.ar/autogestion3w/acceso",                     use_container_width=True)
         st.link_button("💻 CAMPUS UNLA", "https://campus.unla.edu.ar/aulas/login/index.php",                          use_container_width=True)
+        st.link_button("🧠 ESTUDIO IA",  "https://estudio-ia.streamlit.app/",  use_container_width=True)
 
     with col_cur:
         st.markdown("#### 🏆 PROGRESO POR CRÉDITOS:")
@@ -1403,4 +1404,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
