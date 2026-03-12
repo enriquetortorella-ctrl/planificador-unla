@@ -142,6 +142,63 @@ SQUAD_MAP = {
     "Juli": "Nadia", "Kike": "Marco", "Cristian": "Tarma",
 }
 
+# Horarios y docentes — comisión M-Z NOCHE (1er año) + 2do año NOCHE + contracursadas
+HORARIOS = {
+    # 1er año M-Z NOCHE
+    "Contabilidad": {
+        "dia": "Miércoles", "turno": "Noche", "comision": "M-Z",
+        "docente": "Cdor. Manuel Calvo", "instructor": "",
+    },
+    "Historia Económica Contemporánea": {
+        "dia": "Martes", "turno": "Noche", "comision": "M-Z",
+        "docente": "Dr. Miguel Mazzeo", "instructor": "",
+    },
+    "Taller de Comunicación y Producción de Textos": {
+        "dia": "Miércoles", "turno": "Noche", "comision": "M-Z",
+        "docente": "Dr. Miguel Mazzeo", "instructor": "Mg. Diego Martínez",
+    },
+    "Matemática I": {
+        "dia": "Jueves", "turno": "Noche", "comision": "M-Z",
+        "docente": "Lic. Viviana Pan", "instructor": "Lic. Natalia Rosso",
+    },
+    # 2do año NOCHE
+    "Comercialización": {
+        "dia": "Lunes", "turno": "Noche", "comision": "2do",
+        "docente": "DI Carlos Alonso", "instructor": "",
+    },
+    "Microeconomía I": {
+        "dia": "Martes", "turno": "Noche", "comision": "2do",
+        "docente": "Mg. Carlos Prieu", "instructor": "Lic. Jonatan Aguirre",
+    },
+    "Costos Empresariales": {
+        "dia": "Miércoles", "turno": "Noche", "comision": "2do",
+        "docente": "Cdor. Gabriel Módica", "instructor": "",
+    },
+    "Cálculo Financiero": {
+        "dia": "Viernes", "turno": "Noche", "comision": "2do",
+        "docente": "Lic. P. Lemos - Lic. K. Angulo", "instructor": "",
+    },
+    # Contracursadas NOCHE
+    "Empresa, Economía y Sociedad": {
+        "dia": "Lunes", "turno": "Noche", "comision": "Contrac.",
+        "docente": "Dr. José Fernández", "instructor": "",
+    },
+    "Matemática II": {
+        "dia": "Martes", "turno": "Noche", "comision": "Contrac.",
+        "docente": "Lic. Viviana Pan", "instructor": "Lic. Natalia Rosso",
+    },
+    "Derecho Comercial": {
+        "dia": "Miércoles", "turno": "Noche", "comision": "Contrac.",
+        "docente": "Mg. Matías Novoa Haidar", "instructor": "Mg. Nicolás Caputo",
+    },
+    "Organización y Gestión": {
+        "dia": "Jueves", "turno": "Noche", "comision": "Contrac.",
+        "docente": "Cdra. Analuz Vidal", "instructor": "",
+    },
+}
+
+DIAS_ORDEN = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+
 # Materias que se aprueban por cursada, sin final obligatorio
 MATERIAS_SIN_FINAL = {
     "Seminario de Justicia y Derechos Humanos",
@@ -193,19 +250,14 @@ def guardar_df(conn, df: pd.DataFrame):
     # 🛡️ FUSIBLE DE SEGURIDAD: Si el DF está vacío, no toca el Sheet
     if df.empty or len(df.columns) < 2:
         st.error("🚨 ATENCIÓN: Se intentó guardar una base de datos vacía. Operación cancelada para proteger el archivo.")
-        return 
-
+        return
     try:
-        # Limpiamos nombres de columnas para que siempre coincidan
         df.columns = [str(c).strip().capitalize() for c in df.columns]
-        
-        # Guardamos en Google Sheets
         conn.update(worksheet=0, data=df)
-        
-        # Limpiamos la memoria para que el cambio se vea al instante
         st.cache_data.clear()
     except Exception as e:
         st.error(f"⚠️ Error al sincronizar con Google Sheets: {e}")
+
 
 def asegurar_columnas(df: pd.DataFrame) -> pd.DataFrame:
     defaults = {
@@ -218,6 +270,25 @@ def asegurar_columnas(df: pd.DataFrame) -> pd.DataFrame:
         if col not in df.columns:
             df[col] = val
     return df
+
+
+def get_horario_badge(materia: str) -> str:
+    """Retorna un string corto con día + docente para mostrar en tarjeta."""
+    h = HORARIOS.get(materia)
+    if not h:
+        return ""
+    inst = f" · {h['instructor']}" if h["instructor"] else ""
+    return f"📅 {h['dia']} · {h['docente']}{inst}"
+
+
+def dia_es_hoy(materia: str) -> bool:
+    h = HORARIOS.get(materia)
+    if not h:
+        return False
+    hoy = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"][
+        __import__("datetime").date.today().weekday()
+    ]
+    return h["dia"] == hoy
 
 
 def dias_restantes(fecha_str: str):
@@ -878,7 +949,7 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
         st.link_button("📂 DRIVE SQUAD",  "https://drive.google.com/drive/folders/1C7LQskupjeW2sO2wnD_upyYnuxip4oqs", use_container_width=True)
         st.link_button("🏛️ SIU GUARANÍ", "https://estudiantes.unla.edu.ar/autogestion3w/acceso",                     use_container_width=True)
         st.link_button("💻 CAMPUS UNLA", "https://campus.unla.edu.ar/aulas/login/index.php",                          use_container_width=True)
-        st.link_button("🧠 ESTUDIO IA",  "https://estudio-ia.streamlit.app/",  use_container_width=True)
+        st.link_button("🧠 ESTUDIO IA",  "https://estudio-ia.streamlit.app/",                                         use_container_width=True)
 
     with col_cur:
         st.markdown("#### 🏆 PROGRESO POR CRÉDITOS:")
@@ -914,6 +985,22 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
         st.markdown("---")
         st.markdown("#### ⚔️ MATERIAS EN CURSO:")
 
+        # Alerta de clase hoy
+        import datetime as _dt
+        hoy_nombre = DIAS_ORDEN[_dt.date.today().weekday()]
+        clases_hoy = [
+            m for m in mis_datos[mis_datos["Estado"].isin(["Cursando","Final"])]["Materia"].tolist()
+            if HORARIOS.get(m, {}).get("dia") == hoy_nombre
+        ]
+        if clases_hoy:
+            materias_hoy_str = " · ".join(clases_hoy)
+            st.markdown(
+                f"<div style='background:#1a2200; border-left:4px solid #f1c40f; border-radius:6px; "
+                f"padding:10px 14px; margin-bottom:10px;'>"
+                f"🔥 <strong>HOY {hoy_nombre.upper()} TENÉS:</strong> {materias_hoy_str}</div>",
+                unsafe_allow_html=True,
+            )
+
         if cursando_df.empty and mis_datos[mis_datos["Estado"] == "Final"].empty:
             st.info("No estás cursando ninguna materia. ¡Inscribite en PRÓX.!")
         else:
@@ -938,7 +1025,8 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
                         f"border-radius:6px; padding:10px 14px; margin-bottom:4px;'>"
                         f"📝 <strong>{materia}</strong> "
                         f"<span style='color:#aaa; font-size:11px;'>[{tipo_c}] {badge}</span>"
-                        f"</div>",
+                        + (f"<br><span style='color:#f1c40f; font-size:10px;'>{get_horario_badge(materia)}</span>" if get_horario_badge(materia) else "")
+                        + f"</div>",
                         unsafe_allow_html=True,
                     )
 
@@ -985,13 +1073,19 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
                     sin_final = materia in MATERIAS_SIN_FINAL
                     badge_tipo = "🔄" if tipo_c == "Contracursada" else "📘"
                     sin_final_badge = "<span style='color:#2ecc71; font-size:10px;'> · Sin final</span>" if sin_final else ""
+                    horario_badge = get_horario_badge(materia)
+                    hoy_badge = " 🔥" if dia_es_hoy(materia) else ""
+                    horario_html = (
+                        f"<br><span style='color:#f1c40f; font-size:10px;'>{horario_badge}{hoy_badge}</span>"
+                        if horario_badge else ""
+                    )
 
                     st.markdown(
                         f"<div style='background:#1a1c23; border-left:4px solid #f1c40f; "
                         f"border-radius:6px; padding:10px 14px; margin-bottom:4px;'>"
                         f"{badge_tipo} <strong>{materia}</strong> "
                         f"<span style='color:#aaa; font-size:11px;'>[{tipo_c}]{parciales_str}</span>"
-                        f"{sin_final_badge}</div>",
+                        f"{sin_final_badge}{horario_html}</div>",
                         unsafe_allow_html=True,
                     )
 
@@ -1151,8 +1245,13 @@ def vista_proximas(conn, df, usuario, mis_datos, aprobadas_df):
     if disponibles:
         st.markdown("##### 🔓 Disponibles para cursar:")
         for d in disponibles:
+            h = HORARIOS.get(d)
+            horario_str = ""
+            if h:
+                inst = f" · {h['instructor']}" if h["instructor"] else ""
+                horario_str = f" · 📅 {h['dia']} NOCHE · {h['docente']}{inst}"
             c1, c2, c3 = st.columns([3, 1, 1])
-            c1.success(f"**{d}** ({PLAN_ESTUDIOS[d]['puntos']} pts) — {PLAN_ESTUDIOS[d]['periodo']}")
+            c1.success(f"**{d}** ({PLAN_ESTUDIOS[d]['puntos']} pts){horario_str}")
             tipo_key = f"tipo_{d}"
             if tipo_key not in st.session_state:
                 st.session_state[tipo_key] = "Regular"
@@ -1178,6 +1277,67 @@ def vista_proximas(conn, df, usuario, mis_datos, aprobadas_df):
             faltan = [c for c in PLAN_ESTUDIOS[b]["correlativas"] if c not in aprobadas]
             st.markdown(
                 f"<div class='warning-card'><strong>{b}</strong> — falta: {', '.join(faltan)}</div>",
+                unsafe_allow_html=True,
+            )
+
+
+def vista_horarios(mis_datos):
+    st.header("📅 GRILLA DE HORARIOS")
+
+    import datetime as _dt
+    hoy_idx  = _dt.date.today().weekday()
+    hoy_nombre = DIAS_ORDEN[hoy_idx] if hoy_idx < 7 else ""
+
+    # Materias que el usuario tiene activas (cursando o en final)
+    activas = set(mis_datos[mis_datos["Estado"].isin(["Cursando", "Final"])]["Materia"].tolist())
+
+    # ── Tarjeta de hoy ────────────────────────────────────────────────
+    hoy_materias = [m for m, h in HORARIOS.items() if h["dia"] == hoy_nombre]
+    if hoy_materias:
+        st.markdown(f"### 🔥 HOY — {hoy_nombre}")
+        for m in hoy_materias:
+            h = HORARIOS[m]
+            inst = f"<br><span style='color:#aaa; font-size:11px;'>Instructor: {h['instructor']}</span>" if h["instructor"] else ""
+            activa_style = "border-left:4px solid #f1c40f;" if m in activas else "border-left:4px solid #444;"
+            activa_badge = " <span style='color:#f1c40f; font-size:10px;'>★ EN CURSO</span>" if m in activas else ""
+            st.markdown(
+                f"<div style='background:#1a1c23; {activa_style} border-radius:6px; padding:12px 16px; margin-bottom:6px;'>"
+                f"<strong>{m}</strong>{activa_badge}"
+                f"<br><span style='color:#3498db; font-size:12px;'>👨‍🏫 {h['docente']}</span>{inst}"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
+        st.markdown("---")
+
+    # ── Grilla semanal completa ───────────────────────────────────────
+    st.markdown("### 📋 Semana completa — NOCHE")
+
+    dias_con_materias = sorted(
+        set(h["dia"] for h in HORARIOS.values()),
+        key=lambda d: DIAS_ORDEN.index(d) if d in DIAS_ORDEN else 99
+    )
+
+    for dia in dias_con_materias:
+        es_hoy = dia == hoy_nombre
+        dia_header_color = "#f1c40f" if es_hoy else "#e0e0e0"
+        hoy_tag = " 🔥" if es_hoy else ""
+        st.markdown(
+            f"<div style='color:{dia_header_color}; font-family:monospace; font-weight:bold; "
+            f"font-size:15px; margin:18px 0 6px 0;'>{dia.upper()}{hoy_tag}</div>",
+            unsafe_allow_html=True,
+        )
+        materias_dia = [m for m, h in HORARIOS.items() if h["dia"] == dia]
+        for m in materias_dia:
+            h = HORARIOS[m]
+            inst = f" · {h['instructor']}" if h["instructor"] else ""
+            activa_style = "border-left:4px solid #f1c40f; background:#1e1b0e;" if m in activas else "border-left:4px solid #2c3e50; background:#1a1c23;"
+            activa_badge = " <span style='color:#f1c40f; font-size:10px;'>★ EN CURSO</span>" if m in activas else ""
+            comision_badge = f"<span style='color:#666; font-size:10px;'> [{h['comision']}]</span>"
+            st.markdown(
+                f"<div style='{activa_style} border-radius:6px; padding:10px 14px; margin-bottom:4px;'>"
+                f"<strong>{m}</strong>{comision_badge}{activa_badge}"
+                f"<br><span style='color:#3498db; font-size:11px;'>👨‍🏫 {h['docente']}{inst}</span>"
+                f"</div>",
                 unsafe_allow_html=True,
             )
 
@@ -1358,14 +1518,15 @@ def main():
     if usuario == "Seleccionar...":
         return
 
-    # Navegación — 5 secciones
-    nav_cols = st.columns(5)
+    # Navegación — 6 secciones
+    nav_cols = st.columns(6)
     menus = [
-        ("🏠 INICIO",  "Inicio"),
-        ("📝 PRÓX.",   "Proximas"),
-        ("✅ HIST.",   "Historial"),
-        ("👥 GRUPO",  "Grupo"),
-        ("📊 STATS",  "Stats"),
+        ("🏠 INICIO",    "Inicio"),
+        ("📝 PRÓX.",     "Proximas"),
+        ("✅ HIST.",     "Historial"),
+        ("👥 GRUPO",    "Grupo"),
+        ("📅 HORA.",    "Horarios"),
+        ("📊 STATS",    "Stats"),
     ]
     for col, (label, key) in zip(nav_cols, menus):
         if col.button(label, use_container_width=True):
@@ -1397,6 +1558,8 @@ def main():
         vista_proximas(conn, df, usuario, mis_datos, aprobadas_df)
     elif menu == "Historial":
         vista_historial(conn, df, usuario, mis_datos)
+    elif menu == "Horarios":
+        vista_horarios(mis_datos)
     elif menu == "Stats":
         vista_estadisticas(df, usuario, mis_datos, aprobadas_df, cursando_df, final_df,
                            puntos_logrados, promedio_simple, promedio_pond)
@@ -1404,5 +1567,4 @@ def main():
 
 if __name__ == "__main__":
     main()
-
 
