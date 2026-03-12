@@ -291,6 +291,23 @@ def dia_es_hoy(materia: str) -> bool:
     return h["dia"] == hoy
 
 
+def get_conflicto_horario(materia_nueva: str, mis_datos: pd.DataFrame) -> str | None:
+    """
+    Dado una materia que se quiere cursar, devuelve el nombre de la materia
+    que ya está activa (Cursando/Final) en el mismo día, o None si no hay conflicto.
+    """
+    h_nueva = HORARIOS.get(materia_nueva)
+    if not h_nueva:
+        return None
+    dia_nueva = h_nueva["dia"]
+    activas = mis_datos[mis_datos["Estado"].isin(["Cursando", "Final"])]["Materia"].tolist()
+    for m_activa in activas:
+        h_activa = HORARIOS.get(m_activa)
+        if h_activa and h_activa["dia"] == dia_nueva:
+            return m_activa
+    return None
+
+
 def dias_restantes(fecha_str: str):
     try:
         fecha = datetime.strptime(str(fecha_str).strip(), "%Y-%m-%d").date()
@@ -1250,8 +1267,12 @@ def vista_proximas(conn, df, usuario, mis_datos, aprobadas_df):
             if h:
                 inst = f" · {h['instructor']}" if h["instructor"] else ""
                 horario_str = f" · 📅 {h['dia']} NOCHE · {h['docente']}{inst}"
+
+            conflicto = get_conflicto_horario(d, mis_datos)
+
             c1, c2, c3 = st.columns([3, 1, 1])
             c1.success(f"**{d}** ({PLAN_ESTUDIOS[d]['puntos']} pts){horario_str}")
+
             tipo_key = f"tipo_{d}"
             if tipo_key not in st.session_state:
                 st.session_state[tipo_key] = "Regular"
@@ -1259,16 +1280,28 @@ def vista_proximas(conn, df, usuario, mis_datos, aprobadas_df):
                 "Modalidad:", ["Regular", "Contracursada"], key=f"sel_{d}",
                 index=["Regular", "Contracursada"].index(st.session_state[tipo_key]),
             )
-            if c3.button("⚔️ CURSAR", key=f"in_{d}"):
-                nueva = pd.DataFrame([{
-                    "Nombre": usuario, "Materia": d, "Estado": "Cursando",
-                    "Cursada": st.session_state[tipo_key],
-                    "Nota": "", "Nota_parcial1": "", "Nota_parcial2": "",
-                    "Fecha_aprobacion": "", "Fecha_examen": "",
-                }])
-                guardar_df(conn, pd.concat([df, nueva], ignore_index=True))
-                st.session_state["play_sound"] = "gunshot"
-                st.rerun()
+
+            if conflicto:
+                c3.button("⚔️ CURSAR", key=f"in_{d}", disabled=True, use_container_width=True)
+                st.markdown(
+                    f"<div style='background:#1a0d0d; border-left:4px solid #ff4b4b; "
+                    f"border-radius:6px; padding:8px 12px; margin:-6px 0 8px 0; font-size:12px;'>"
+                    f"⚠️ <strong>Conflicto de horario</strong> — "
+                    f"Ya estás cursando <strong>{conflicto}</strong> el mismo día "
+                    f"({HORARIOS[conflicto]['dia']})</div>",
+                    unsafe_allow_html=True,
+                )
+            else:
+                if c3.button("⚔️ CURSAR", key=f"in_{d}", use_container_width=True):
+                    nueva = pd.DataFrame([{
+                        "Nombre": usuario, "Materia": d, "Estado": "Cursando",
+                        "Cursada": st.session_state[tipo_key],
+                        "Nota": "", "Nota_parcial1": "", "Nota_parcial2": "",
+                        "Fecha_aprobacion": "", "Fecha_examen": "",
+                    }])
+                    guardar_df(conn, pd.concat([df, nueva], ignore_index=True))
+                    st.session_state["play_sound"] = "gunshot"
+                    st.rerun()
 
     if bloqueadas:
         st.markdown("---")
