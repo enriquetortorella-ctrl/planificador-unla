@@ -93,43 +93,40 @@ st.markdown("""
 # 2. PLAN DE ESTUDIOS CON CRÉDITOS
 # ─────────────────────────────────────────────
 PLAN_ESTUDIOS = {
-    "Introducción a Economía Empresarial":               {"periodo": "1° Cuat.", "puntos": 4,  "correlativas": []},
-    "Historia Económica Contemporánea":                  {"periodo": "1° Cuat.", "puntos": 5,  "correlativas": []},
-    "Contabilidad":                                      {"periodo": "1° Cuat.", "puntos": 8,  "correlativas": []},
-    "Matemática I":                                      {"periodo": "1° Cuat.", "puntos": 8,  "correlativas": []},
+    # ── 1er año ──────────────────────────────────────────────────────────
+    "Introducción a Economía Empresarial":               {"periodo": "Anual",    "puntos": 4,  "correlativas": []},
+    "Historia Económica Contemporánea":                  {"periodo": "1° Cuat.", "puntos": 5,  "correlativas": ["Introducción a Economía Empresarial"]},
+    "Contabilidad":                                      {"periodo": "1° Cuat.", "puntos": 8,  "correlativas": ["Introducción a Economía Empresarial"]},
+    "Matemática I":                                      {"periodo": "1° Cuat.", "puntos": 8,  "correlativas": ["Introducción a Economía Empresarial"]},
     "Taller de Comunicación y Producción de Textos":     {"periodo": "1° Cuat.", "puntos": 5,  "correlativas": []},
     "Empresa, Economía y Sociedad":                      {"periodo": "2° Cuat.", "puntos": 6,  "correlativas": ["Historia Económica Contemporánea"]},
-    "Organización y Gestión":                            {"periodo": "2° Cuat.", "puntos": 7,  "correlativas": []},
+    "Organización y Gestión":                            {"periodo": "2° Cuat.", "puntos": 7,  "correlativas": ["Matemática I"]},
     "Matemática II":                                     {"periodo": "2° Cuat.", "puntos": 8,  "correlativas": ["Matemática I"]},
-    "Derecho Comercial":                                 {"periodo": "2° Cuat.", "puntos": 6,  "correlativas": ["Organización y Gestión"]},
+    "Derecho Comercial":                                 {"periodo": "2° Cuat.", "puntos": 6,  "correlativas": ["Historia Económica Contemporánea"]},
     "Seminario de Justicia y Derechos Humanos":          {"periodo": "2° Cuat.", "puntos": 3,  "correlativas": []},
-    "Microeconomía I":                                   {"periodo": "1° Cuat.", "puntos": 8,  "correlativas": ["Empresa, Economía y Sociedad", "Matemática I"]},
+    # ── 2do año ──────────────────────────────────────────────────────────
+    "Microeconomía I":                                   {"periodo": "1° Cuat.", "puntos": 8,  "correlativas": ["Matemática I"]},
     "Cálculo Financiero":                                {"periodo": "1° Cuat.", "puntos": 6,  "correlativas": ["Matemática II"]},
-    "Comercialización":                                  {"periodo": "1° Cuat.", "puntos": 6,  "correlativas": ["Organización y Gestión"]},
+    "Comercialización":                                  {"periodo": "1° Cuat.", "puntos": 6,  "correlativas": ["Taller de Comunicación y Producción de Textos", "Organización y Gestión"]},
     "Costos Empresariales":                              {"periodo": "1° Cuat.", "puntos": 8,  "correlativas": ["Contabilidad", "Matemática II"]},
     "Seminario de Pensamiento Nacional Latinoamericano": {"periodo": "1° Cuat.", "puntos": 3,  "correlativas": []},
-    "Macroeconomía":                                     {"periodo": "2° Cuat.", "puntos": 6,  "correlativas": ["Microeconomía I"]},
-    "Estadística":                                       {"periodo": "2° Cuat.", "puntos": 6,  "correlativas": ["Matemática II"]},
-    "Sistemas de Información":                           {"periodo": "2° Cuat.", "puntos": 6,  "correlativas": ["Contabilidad"]},
-    "Administración Financiera":                         {"periodo": "2° Cuat.", "puntos": 6,  "correlativas": ["Cálculo Financiero"]},
-    "Derecho del Trabajo y la Seguridad Social":         {"periodo": "2° Cuat.", "puntos": 6,  "correlativas": ["Derecho Comercial"]},
-    "Microeconomía II":                                  {"periodo": "1° Cuat.", "puntos": 6,  "correlativas": ["Microeconomía I"]},
-    "Investigación de Operaciones":                      {"periodo": "1° Cuat.", "puntos": 6,  "correlativas": ["Estadística"]},
-    "Principios de Tributación":                         {"periodo": "1° Cuat.", "puntos": 6,  "correlativas": ["Derecho Comercial", "Costos Empresariales"]},
-    "Seminario de Integración I":                        {"periodo": "Anual",    "puntos": 8,  "correlativas": ["Comercialización", "Administración Financiera"]},
-    "Taller de Práctica Preprofesional":                 {"periodo": "2° Cuat.", "puntos": 5,  "correlativas": ["Seminario de Integración I"]},
+    "Control de Gestión":                                {"periodo": "2° Cuat.", "puntos": 6,  "correlativas": ["Derecho Comercial", "Costos Empresariales"]},
+    "Estadística":                                       {"periodo": "2° Cuat.", "puntos": 6,  "correlativas": ["Cálculo Financiero"]},
+    "Microeconomía II":                                  {"periodo": "2° Cuat.", "puntos": 6,  "correlativas": ["Microeconomía I"]},
+    "Macroeconomía":                                     {"periodo": "2° Cuat.", "puntos": 6,  "correlativas": ["Empresa, Economía y Sociedad", "Microeconomía I"]},
+    "Taller de Práctica Preprofesional":                 {"periodo": "2° Cuat.", "puntos": 5,  "correlativas": ["Comercialización", "Costos Empresariales"]},
 }
 
 # Áreas para radar chart
 AREAS = {
-    "Matemática":     ["Matemática I", "Matemática II", "Cálculo Financiero", "Estadística", "Investigación de Operaciones"],
+    "Matemática":     ["Matemática I", "Matemática II", "Cálculo Financiero", "Estadística"],
     "Económica":      ["Introducción a Economía Empresarial", "Historia Económica Contemporánea",
                        "Empresa, Economía y Sociedad", "Microeconomía I", "Microeconomía II", "Macroeconomía"],
     "Administración": ["Organización y Gestión", "Comercialización", "Costos Empresariales",
-                       "Administración Financiera", "Sistemas de Información", "Seminario de Integración I",
-                       "Taller de Práctica Preprofesional", "Seminario de Pensamiento Nacional Latinoamericano",
+                       "Control de Gestión", "Taller de Práctica Preprofesional",
+                       "Seminario de Pensamiento Nacional Latinoamericano",
                        "Seminario de Justicia y Derechos Humanos"],
-    "Jurídica":       ["Derecho Comercial", "Derecho del Trabajo y la Seguridad Social", "Principios de Tributación"],
+    "Jurídica":       ["Derecho Comercial"],
     "Comunicación":   ["Taller de Comunicación y Producción de Textos", "Contabilidad"],
 }
 
@@ -201,9 +198,9 @@ DIAS_ORDEN = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "
 
 # Materias que se aprueban por cursada, sin final obligatorio
 MATERIAS_SIN_FINAL = {
+    "Introducción a Economía Empresarial",
     "Seminario de Justicia y Derechos Humanos",
     "Seminario de Pensamiento Nacional Latinoamericano",
-    "Seminario de Integración I",
     "Taller de Comunicación y Producción de Textos",
     "Taller de Práctica Preprofesional",
 }
