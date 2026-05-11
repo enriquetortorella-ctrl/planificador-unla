@@ -10,7 +10,7 @@ from datetime import date, datetime, timedelta
 # ─────────────────────────────────────────────
 st.set_page_config(page_title="Círculo Rojo - SQUAD", page_icon="🔫", layout="wide")
 
-st.markdown("""
+st.markdown("""h
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
@@ -1197,8 +1197,8 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
                             )
                             if st.form_submit_button("💾 GUARDAR", use_container_width=True):
                                 mask = (df["Nombre"] == usuario) & (df["Materia"] == materia)
-                                df.loc[mask, "Nota_parcial1"] = p1 if p1 > 0 else ""
-                                df.loc[mask, "Nota_parcial2"] = p2 if p2 > 0 else ""
+                                df.loc[mask, "Nota_parcial1"] = p1 if p1 > 0 else 0
+                                df.loc[mask, "Nota_parcial2"] = p2 if p2 > 0 else 0
                                 df.loc[mask, "Fecha_examen"]  = str(fecha_ex)
                                 df.loc[mask, "Cursada"]       = nuevo_tipo
                                 guardar_df(conn, df)
