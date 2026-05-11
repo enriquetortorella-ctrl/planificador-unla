@@ -690,7 +690,9 @@ def _get_examenes_proximos(mis_datos: pd.DataFrame) -> list:
         if not fecha_str or fecha_str in ("", "nan", "NaT", "None"):
             continue
         dias = dias_restantes(fecha_str)
-        resultado.append({"materia": row["Materia"], "fecha_str": fecha_str, "dias": dias})
+        p1 = pd.to_numeric(row.get("Nota_parcial1", 0), errors="coerce") or 0
+        tipo = "🏆 Final" if p1 > 0 else "🎯 Parcial"
+        resultado.append({"materia": row["Materia"], "fecha_str": fecha_str, "dias": dias, "tipo": tipo})
     resultado.sort(key=lambda x: (x["dias"] is None, x["dias"] or 9999))
     return resultado
 
@@ -991,7 +993,7 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
                 badge   = f"⚠️ {dias}d" if urgente else (f"📅 {dias}d" if dias is not None else "")
                 clase   = "exam-card exam-urgent" if urgente else "exam-card"
                 st.markdown(
-                    f"<div class='{clase}'><strong>{ex['materia']}</strong> {badge}<br>"
+                    f"<div class='{clase}'><strong>{ex['materia']}</strong> <small style='color:#888'>{ex['tipo']}</small> {badge}<br>"
                     f"<span style='color:#aaa; font-size:12px;'>{ex['fecha_str']}</span></div>",
                     unsafe_allow_html=True,
                 )
@@ -1477,7 +1479,7 @@ def vista_estadisticas(df, usuario, mis_datos, aprobadas_df, cursando_df, final_
             clase   = "exam-card exam-urgent" if urgente else "exam-card"
             st.markdown(
                 f"<div class='{clase}'>"
-                f"<strong>{ex['materia']}</strong> — {ex['fecha_str']} {badge}"
+                f"<strong>{ex['materia']}</strong> <small style='color:#888'>{ex['tipo']}</small> — {ex['fecha_str']} {badge}"
                 f"</div>",
                 unsafe_allow_html=True,
             )
