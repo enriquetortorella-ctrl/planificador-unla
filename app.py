@@ -10,7 +10,7 @@ from datetime import date, datetime, timedelta
 # ─────────────────────────────────────────────
 st.set_page_config(page_title="Círculo Rojo - SQUAD", page_icon="🔫", layout="wide")
 
-st.markdown("""h
+st.markdown("""
     <style>
     @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
