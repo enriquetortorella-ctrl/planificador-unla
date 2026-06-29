@@ -685,13 +685,14 @@ def confetti_html() -> str:
 
 def _get_examenes_proximos(mis_datos: pd.DataFrame) -> list:
     resultado = []
-    for _, row in mis_datos[mis_datos["Estado"].isin(["Cursando", "Aprobada"])].iterrows():
+    for _, row in mis_datos[mis_datos["Estado"].isin(["Cursando", "Final", "Aprobada"])].iterrows():
         fecha_str = str(row.get("Fecha_examen", "")).strip()
         if not fecha_str or fecha_str in ("", "nan", "NaT", "None"):
             continue
         dias = dias_restantes(fecha_str)
-        p1 = pd.to_numeric(row.get("Nota_parcial1", 0), errors="coerce") or 0
-        tipo = "🏆 Final" if p1 > 0 else "🎯 Parcial"
+        # El tipo se deduce del estado real: en "Final" es examen final;
+        # en "Cursando" la fecha cargada corresponde a un parcial.
+        tipo = "🏆 Final" if row["Estado"] == "Final" else "🎯 Parcial"
         resultado.append({"materia": row["Materia"], "fecha_str": fecha_str, "dias": dias, "tipo": tipo})
     resultado.sort(key=lambda x: (x["dias"] is None, x["dias"] or 9999))
     return resultado
@@ -700,7 +701,7 @@ def _get_examenes_proximos(mis_datos: pd.DataFrame) -> list:
 # ─────────────────────────────────────────────
 # 4. GRÁFICOS
 # ─────────────────────────────────────────────
-def arbol_correlativas_html(aprobadas: list, cursando: list) -> str:
+def arbol_correlativas_html(aprobadas: list, cursando: list, en_final: list = None) -> str:
     """
     Genera un grafo interactivo con vis.js:
     - Zoom y pan con touch (funciona en mobile)
@@ -710,6 +711,10 @@ def arbol_correlativas_html(aprobadas: list, cursando: list) -> str:
     """
     import json as _json
 
+    en_final = en_final or []
+    # Una correlativa se considera CUMPLIDA si está aprobada o regularizada (final pendiente)
+    regularizadas = set(aprobadas) | set(en_final)
+
     nodes = []
     edges = []
 
@@ -717,10 +722,13 @@ def arbol_correlativas_html(aprobadas: list, cursando: list) -> str:
         if m in aprobadas:
             color = {"background": "#2ecc71", "border": "#27ae60", "highlight": {"background": "#58d68d", "border": "#27ae60"}}
             font_color = "#0b0d11"
+        elif m in en_final:
+            color = {"background": "#e67e22", "border": "#ca6f1e", "highlight": {"background": "#eb984e", "border": "#ca6f1e"}}
+            font_color = "#0b0d11"
         elif m in cursando:
             color = {"background": "#f1c40f", "border": "#d4ac0d", "highlight": {"background": "#f4d03f", "border": "#d4ac0d"}}
             font_color = "#0b0d11"
-        elif all(c in aprobadas for c in info["correlativas"]):
+        elif all(c in regularizadas for c in info["correlativas"]):
             color = {"background": "#3498db", "border": "#2980b9", "highlight": {"background": "#5dade2", "border": "#2980b9"}}
             font_color = "#ffffff"
         else:
@@ -1028,6 +1036,7 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
                     materia  = row["Materia"]
                     tipo_c   = row["Cursada"]
                     key_ap   = f"aprobar_final_{i}_{materia}"
+                    key_fex  = f"editfecha_final_{i}_{materia}"
 
                     fecha_ex = str(row.get("Fecha_examen", "")).strip()
                     dias     = dias_restantes(fecha_ex) if fecha_ex and fecha_ex not in ("", "nan", "NaT", "None") else None
@@ -1046,14 +1055,37 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
                         unsafe_allow_html=True,
                     )
 
-                    bc1, bc2, _ = st.columns([2, 1, 4])
+                    bc1, bc2, bc3, _ = st.columns([2, 1, 1, 3])
                     if bc1.button("✅ Aprobé el final", key=f"apfinal_{i}", use_container_width=True):
-                        st.session_state[key_ap] = not st.session_state.get(key_ap, False)
-                    if bc2.button("🗑️", key=f"delfinal_{i}", use_container_width=True):
+                        st.session_state[key_ap]  = not st.session_state.get(key_ap, False)
+                        st.session_state[key_fex] = False
+                    if bc2.button("📅", key=f"fexfinal_{i}", use_container_width=True, help="Editar fecha de mesa de final"):
+                        st.session_state[key_fex] = not st.session_state.get(key_fex, False)
+                        st.session_state[key_ap]  = False
+                    if bc3.button("🗑️", key=f"delfinal_{i}", use_container_width=True):
                         idx_drop = df[(df["Nombre"] == usuario) & (df["Materia"] == materia)].index
                         guardar_df(conn, df.drop(idx_drop).reset_index(drop=True))
                         st.session_state["play_sound"] = "delete"
                         st.rerun()
+
+                    # Editar fecha de mesa de final (por si te la corren)
+                    if st.session_state.get(key_fex, False):
+                        with st.form(key=f"formfex_{i}"):
+                            st.markdown(f"**📅 Mesa de final: {materia}**")
+                            try:
+                                fex_val = datetime.strptime(fecha_ex, "%Y-%m-%d").date()
+                            except Exception:
+                                fex_val = date.today()
+                            nueva_fex = st.date_input("Fecha de la mesa de final:", value=fex_val)
+                            if st.form_submit_button("💾 GUARDAR FECHA", use_container_width=True):
+                                df.loc[
+                                    (df["Nombre"] == usuario) & (df["Materia"] == materia),
+                                    "Fecha_examen"
+                                ] = str(nueva_fex)
+                                guardar_df(conn, df)
+                                st.session_state[key_fex]      = False
+                                st.session_state["play_sound"] = "click"
+                                st.rerun()
 
                     if st.session_state.get(key_ap, False):
                         with st.form(key=f"formfinal_{i}"):
@@ -1251,12 +1283,17 @@ def vista_grupo(df):
 def vista_proximas(conn, df, usuario, mis_datos, aprobadas_df):
     st.header("📝 PRÓXIMOS OBJETIVOS")
     ya_registradas = mis_datos["Materia"].tolist()
-    aprobadas      = aprobadas_df["Materia"].tolist()
+
+    # 🔑 CORRELATIVAS: una materia habilita a cursar las siguientes cuando está
+    # REGULARIZADA (cursada aprobada → estado "Final") o totalmente "Aprobada".
+    # No hace falta tener el final aprobado para cursar la correlativa.
+    regularizadas = mis_datos[mis_datos["Estado"].isin(["Aprobada", "Final"])]["Materia"].tolist()
+    en_final_list = mis_datos[mis_datos["Estado"] == "Final"]["Materia"].tolist()
 
     disponibles = [m for m, info in PLAN_ESTUDIOS.items()
-                   if m not in ya_registradas and all(c in aprobadas for c in info["correlativas"])]
+                   if m not in ya_registradas and all(c in regularizadas for c in info["correlativas"])]
     bloqueadas  = [m for m, info in PLAN_ESTUDIOS.items()
-                   if m not in ya_registradas and not all(c in aprobadas for c in info["correlativas"])]
+                   if m not in ya_registradas and not all(c in regularizadas for c in info["correlativas"])]
 
     if disponibles:
         st.markdown("##### 🔓 Disponibles para cursar:")
@@ -1271,6 +1308,11 @@ def vista_proximas(conn, df, usuario, mis_datos, aprobadas_df):
 
             c1, c2, c3 = st.columns([3, 1, 1])
             c1.success(f"**{d}** ({PLAN_ESTUDIOS[d]['puntos']} pts){horario_str}")
+
+            # Aviso: se habilita por REGULARIDAD (correlativa con final aún pendiente)
+            corr_pendiente_final = [c for c in PLAN_ESTUDIOS[d]["correlativas"] if c in en_final_list]
+            if corr_pendiente_final:
+                c1.caption(f"🟠 Habilitada por regularidad — todavía debés el final de: {', '.join(corr_pendiente_final)}")
 
             tipo_key = f"tipo_{d}"
             if tipo_key not in st.session_state:
@@ -1306,7 +1348,7 @@ def vista_proximas(conn, df, usuario, mis_datos, aprobadas_df):
         st.markdown("---")
         st.markdown("##### 🔒 Bloqueadas (faltan correlativas):")
         for b in bloqueadas:
-            faltan = [c for c in PLAN_ESTUDIOS[b]["correlativas"] if c not in aprobadas]
+            faltan = [c for c in PLAN_ESTUDIOS[b]["correlativas"] if c not in regularizadas]
             st.markdown(
                 f"<div class='warning-card'><strong>{b}</strong> — falta: {', '.join(faltan)}</div>",
                 unsafe_allow_html=True,
@@ -1447,13 +1489,14 @@ def vista_estadisticas(df, usuario, mis_datos, aprobadas_df, cursando_df, final_
     st.markdown("#### 🌐 ÁRBOL DE CORRELATIVAS")
     st.markdown(
         "<div style='display:flex; gap:20px; flex-wrap:wrap; margin-bottom:10px; font-size:13px;'>"
-        "<span>🟢 Aprobada</span><span>🟡 Cursando</span>"
+        "<span>🟢 Aprobada</span><span>🟠 Regularizada (final pend.)</span><span>🟡 Cursando</span>"
         "<span>🔵 Disponible</span><span>⚫ Bloqueada</span></div>",
         unsafe_allow_html=True,
     )
     html_grafo = arbol_correlativas_html(
         aprobadas_df["Materia"].tolist(),
         cursando_df["Materia"].tolist(),
+        final_df["Materia"].tolist(),
     )
     st.components.v1.html(html_grafo, height=630, scrolling=False)
 
@@ -1599,4 +1642,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
