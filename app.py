@@ -16,6 +16,26 @@ st.markdown("""
 
     .stApp { background-color: #0b0d11; color: #e0e0e0; }
 
+    /* ── EFECTO CRT: scanlines + viñeta de monitor arcade ── */
+    .stApp::before {
+        content: "";
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background:
+            repeating-linear-gradient(
+                0deg,
+                rgba(0,0,0,0.18),
+                rgba(0,0,0,0.18) 1px,
+                rgba(0,0,0,0.00) 1px,
+                rgba(0,0,0,0.00) 3px
+            ),
+            radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,0.35) 100%);
+        pointer-events: none;
+        z-index: 9990;
+        opacity: 0.55;
+        mix-blend-mode: multiply;
+    }
+
     .retro-font {
         font-family: 'Press Start 2P', cursive;
         color: #f1c40f;
@@ -213,6 +233,43 @@ def get_avatar_path(usuario: str, n_aprobadas: int) -> str:
     char  = SQUAD_MAP.get(usuario, "Marco")
     nivel = 1 if n_aprobadas <= 10 else 2 if n_aprobadas <= 20 else 3 if n_aprobadas <= 30 else 4
     return os.path.join("assets", f"{char}_{nivel}.gif")
+
+
+def barra_retro_html(pct: float, color: str, glow: str, label: str = "") -> str:
+    """Barra de progreso estilo HP/XP arcade: segmentada, con glow neón."""
+    pct = max(0.0, min(100.0, float(pct)))
+    label_html = (
+        f"<span style='position:absolute; right:8px; top:2px; font-family:monospace; "
+        f"font-size:11px; color:#fff; text-shadow:1px 1px 2px #000; z-index:2;'>{label}</span>"
+        if label else ""
+    )
+    return (
+        f"<div style='background:#11141a; border:2px solid {color}; border-radius:4px; "
+        f"height:22px; position:relative; overflow:hidden; margin:2px 0; "
+        f"box-shadow:0 0 7px {glow}, inset 0 0 6px rgba(0,0,0,0.6);'>"
+        f"<div style='width:{pct:.1f}%; height:100%; "
+        f"background:repeating-linear-gradient(90deg, {color} 0px, {color} 9px, "
+        f"{glow} 9px, {glow} 11px); box-shadow:0 0 10px {glow}; "
+        f"transition:width .5s ease;'></div>{label_html}</div>"
+    )
+
+
+def get_rango_militar(creditos: int) -> tuple:
+    """Devuelve (nombre_rango, color) según créditos acumulados (escala sobre 240)."""
+    escala = [
+        (0,   "🎖️ RECLUTA",  "#888888"),
+        (20,  "🎖️ SOLDADO",  "#2ecc71"),
+        (50,  "🪖 CABO",      "#3498db"),
+        (90,  "🪖 SARGENTO",  "#9b59b6"),
+        (140, "⭐ TENIENTE",  "#f1c40f"),
+        (190, "⭐ CAPITÁN",   "#e67e22"),
+        (240, "🏆 GENERAL",   "#ff4b4b"),
+    ]
+    nombre, color = escala[0][1], escala[0][2]
+    for umbral, n, c in escala:
+        if creditos >= umbral:
+            nombre, color = n, c
+    return nombre, color
 
 
 def normalizar_estado(df: pd.DataFrame) -> pd.DataFrame:
@@ -964,6 +1021,16 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
             unsafe_allow_html=True,
         )
 
+        rango_nombre, rango_color = get_rango_militar(puntos_logrados)
+        st.markdown(
+            f"<div style='background:#1a1c23; border:1px solid {rango_color}; border-radius:6px; "
+            f"padding:6px 10px; margin:8px 0 4px 0; text-align:center; "
+            f"box-shadow:0 0 8px {rango_color}55;'>"
+            f"<span style='color:{rango_color}; font-family:monospace; font-size:13px; "
+            f"font-weight:bold; text-shadow:1px 1px 2px #000;'>{rango_nombre}</span></div>",
+            unsafe_allow_html=True,
+        )
+
         egreso = estimar_egreso(aprobadas_df)
         if egreso:
             st.markdown(
@@ -980,13 +1047,19 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
     with col_cur:
         st.markdown("#### 🏆 PROGRESO POR CRÉDITOS:")
         prog_tec = min(puntos_logrados / CREDITOS_TOTAL_TECNICATURA, 1.0)
-        st.progress(prog_tec)
+        st.markdown(
+            barra_retro_html(prog_tec * 100, "#3498db", "#5dade2", f"{int(prog_tec*100)}%"),
+            unsafe_allow_html=True,
+        )
         st.markdown(
             f"<p class='hp-bar-text-blue'>TECNICATURA: {puntos_logrados}/{CREDITOS_TOTAL_TECNICATURA} pts ({int(prog_tec*100)}%)</p>",
             unsafe_allow_html=True,
         )
         prog_lic = min(puntos_logrados / CREDITOS_TOTAL_LICENCIATURA, 1.0)
-        st.progress(prog_lic)
+        st.markdown(
+            barra_retro_html(prog_lic * 100, "#ff4b4b", "#ff7b7b", f"{int(prog_lic*100)}%"),
+            unsafe_allow_html=True,
+        )
         st.markdown(
             f"<p class='hp-bar-text'>LICENCIATURA: {puntos_logrados}/{CREDITOS_TOTAL_LICENCIATURA} pts ({int(prog_lic*100)}%)</p>",
             unsafe_allow_html=True,
