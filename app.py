@@ -297,7 +297,9 @@ def get_conflicto_horario(materia_nueva: str, mis_datos: pd.DataFrame) -> str | 
     if not h_nueva:
         return None
     dia_nueva = h_nueva["dia"]
-    activas = mis_datos[mis_datos["Estado"].isin(["Cursando", "Final"])]["Materia"].tolist()
+    # Solo bloquean el horario las materias que estás CURSANDO realmente.
+    # Una materia en "Final" ya terminó la cursada (no vas a clase), no genera conflicto.
+    activas = mis_datos[mis_datos["Estado"] == "Cursando"]["Materia"].tolist()
     for m_activa in activas:
         h_activa = HORARIOS.get(m_activa)
         if h_activa and h_activa["dia"] == dia_nueva:
@@ -1013,7 +1015,7 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
         import datetime as _dt
         hoy_nombre = DIAS_ORDEN[_dt.date.today().weekday()]
         clases_hoy = [
-            m for m in mis_datos[mis_datos["Estado"].isin(["Cursando","Final"])]["Materia"].tolist()
+            m for m in mis_datos[mis_datos["Estado"] == "Cursando"]["Materia"].tolist()
             if HORARIOS.get(m, {}).get("dia") == hoy_nombre
         ]
         if clases_hoy:
@@ -1362,8 +1364,9 @@ def vista_horarios(mis_datos):
     hoy_idx  = _dt.date.today().weekday()
     hoy_nombre = DIAS_ORDEN[hoy_idx] if hoy_idx < 7 else ""
 
-    # Materias que el usuario tiene activas (cursando o en final)
-    activas = set(mis_datos[mis_datos["Estado"].isin(["Cursando", "Final"])]["Materia"].tolist())
+    # Materias que el usuario cursa activamente (van a clase esta semana).
+    # Las que están en "Final" ya no ocupan horario semanal.
+    activas = set(mis_datos[mis_datos["Estado"] == "Cursando"]["Materia"].tolist())
 
     # ── Tarjeta de hoy ────────────────────────────────────────────────
     hoy_materias = [m for m, h in HORARIOS.items() if h["dia"] == hoy_nombre]
