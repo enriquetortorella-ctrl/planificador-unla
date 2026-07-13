@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 from streamlit_gsheets import GSheetsConnection
 import os
+import unicodedata
 from datetime import date, datetime, timedelta
 
 # ─────────────────────────────────────────────
@@ -86,6 +87,19 @@ st.markdown("""
         border-left: 4px solid #ff4b4b !important;
         background-color: #1a0d0d !important;
     }
+    .logro-card {
+        background: #1a1c23;
+        border-radius: 8px;
+        padding: 12px 10px;
+        text-align: center;
+        border: 1px solid #333;
+        height: 100%;
+    }
+    .logro-on {
+        border: 1px solid #f1c40f;
+        box-shadow: 0 0 10px #f1c40f44;
+    }
+    .logro-off { filter: grayscale(1); opacity: 0.35; }
     [data-testid="stMetricValue"] {
         font-family: 'Press Start 2P', cursive;
         font-size: 18px !important;
@@ -98,6 +112,9 @@ st.markdown("""
 
         /* Navegación: texto más chico */
         .stButton > button { font-size: 11px !important; padding: 6px 4px !important; }
+
+        /* Pills de navegación compactas */
+        [data-testid="stPills"] button { font-size: 11px !important; padding: 4px 8px !important; }
 
         /* Header más chico */
         .retro-font { font-size: 14px !important; }
@@ -153,6 +170,9 @@ AREAS = {
 CREDITOS_TOTAL_TECNICATURA  = 120
 CREDITOS_TOTAL_LICENCIATURA = 240
 TOTAL_MATERIAS = len(PLAN_ESTUDIOS)
+
+MESES_ES = ["enero", "febrero", "marzo", "abril", "mayo", "junio",
+            "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
 
 SQUAD_MAP = {
     "Facu": "Allen", "Ivan": "Trevor", "Maca": "Alisa",
@@ -229,6 +249,18 @@ MATERIAS_SIN_FINAL = {
 # ─────────────────────────────────────────────
 # 3. HELPERS
 # ─────────────────────────────────────────────
+def _norm_nombre(s: str) -> str:
+    """
+    Normaliza un nombre de materia para comparar correlativas sin que una
+    tilde, mayúscula o espacio de más rompa el match silenciosamente.
+    'Historia Económica  Contemporánea' == 'historia economica contemporanea'
+    """
+    s = str(s).strip().lower()
+    s = unicodedata.normalize("NFKD", s)
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    return " ".join(s.split())
+
+
 def get_avatar_path(usuario: str, n_aprobadas: int) -> str:
     char  = SQUAD_MAP.get(usuario, "Marco")
     nivel = 1 if n_aprobadas <= 10 else 2 if n_aprobadas <= 20 else 3 if n_aprobadas <= 30 else 4
@@ -300,14 +332,45 @@ def asignar_periodo_real(materia: str, cursada: str) -> str:
     return "1° Cuatrimestre" if teorico in ("1° Cuat.", "Anual") else "2° Cuatrimestre"
 
 
-def guardar_df(conn, df: pd.DataFrame):
-    # 🛡️ FUSIBLE DE SEGURIDAD: Si el DF está vacío, no toca el Sheet
-    if df.empty or len(df.columns) < 2:
+def guardar_df(conn, df_local: pd.DataFrame, usuario: str | None = None):
+    """
+    Guarda en Google Sheets de forma SEGURA para multi-usuario:
+    1. 🛡️ Fusible: si el DF está vacío, no toca el Sheet.
+    2. 🔄 Anti-pisado: relee el Sheet FRESCO y solo reemplaza las filas del
+       usuario actual — así nunca se borran cambios recientes de otro soldado.
+    3. 💾 Backup: antes de escribir, respalda el estado actual en la
+       worksheet "backup" (crear esa pestaña una vez en el Google Sheet).
+    """
+    if df_local.empty or len(df_local.columns) < 2:
         st.error("🚨 ATENCIÓN: Se intentó guardar una base de datos vacía. Operación cancelada para proteger el archivo.")
         return
     try:
-        df.columns = [str(c).strip().capitalize() for c in df.columns]
-        conn.update(worksheet=0, data=df)
+        df_final = df_local.copy()
+
+        if usuario:
+            try:
+                # Releer el Sheet SIN cache para tener los datos reales al momento de guardar
+                df_remoto = conn.read(worksheet=0, ttl=0)
+                df_remoto.columns = [str(c).strip().capitalize() for c in df_remoto.columns]
+                df_remoto = asegurar_columnas(df_remoto)
+                df_remoto = normalizar_estado(df_remoto)
+
+                # 💾 Backup del estado previo (falla en silencio si no existe la pestaña "backup")
+                try:
+                    conn.update(worksheet="backup", data=df_remoto)
+                except Exception:
+                    pass
+
+                # Conservar filas de los demás soldados, reemplazar solo las mías
+                otros = df_remoto[df_remoto["Nombre"] != usuario]
+                mias  = df_local[df_local["Nombre"] == usuario]
+                df_final = pd.concat([otros, mias], ignore_index=True)
+            except Exception:
+                # Si falla la relectura, guardamos la copia local (comportamiento anterior)
+                df_final = df_local.copy()
+
+        df_final.columns = [str(c).strip().capitalize() for c in df_final.columns]
+        conn.update(worksheet=0, data=df_final)
         st.cache_data.clear()
     except Exception as e:
         st.error(f"⚠️ Error al sincronizar con Google Sheets: {e}")
@@ -318,7 +381,7 @@ def asegurar_columnas(df: pd.DataFrame) -> pd.DataFrame:
         "Nota": "", "Cursada": "Regular", "Estado": "Cursando",
         "Nota_parcial1": "", "Nota_parcial2": "",
         "Fecha_aprobacion": "", "Fecha_examen": "",
-        "Tiene_final": "",
+        "Tiene_final": "", "Aplazos": "",
     }
     for col, val in defaults.items():
         if col not in df.columns:
@@ -339,16 +402,13 @@ def dia_es_hoy(materia: str) -> bool:
     h = HORARIOS.get(materia)
     if not h:
         return False
-    hoy = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"][
-        __import__("datetime").date.today().weekday()
-    ]
-    return h["dia"] == hoy
+    return h["dia"] == DIAS_ORDEN[date.today().weekday()]
 
 
 def get_conflicto_horario(materia_nueva: str, mis_datos: pd.DataFrame) -> str | None:
     """
     Dado una materia que se quiere cursar, devuelve el nombre de la materia
-    que ya está activa (Cursando/Final) en el mismo día, o None si no hay conflicto.
+    que ya está activa (Cursando) en el mismo día, o None si no hay conflicto.
     """
     h_nueva = HORARIOS.get(materia_nueva)
     if not h_nueva:
@@ -373,6 +433,7 @@ def dias_restantes(fecha_str: str):
 
 
 def estimar_egreso(aprobadas_df: pd.DataFrame):
+    """Estima el fin del PLAN CARGADO (Tecnicatura: 20 materias) según el ritmo histórico."""
     if "Fecha_aprobacion" not in aprobadas_df.columns:
         return None
     fechas = pd.to_datetime(aprobadas_df["Fecha_aprobacion"], errors="coerce").dropna()
@@ -386,7 +447,54 @@ def estimar_egreso(aprobadas_df: pd.DataFrame):
     materias_rest = TOTAL_MATERIAS - len(aprobadas_df)
     dias_rest     = materias_rest / ritmo
     fecha_est     = date.today() + timedelta(days=dias_rest)
-    return fecha_est.strftime("%B %Y")
+    # Mes en castellano (strftime %B depende del locale del servidor y sale en inglés)
+    return f"{MESES_ES[fecha_est.month - 1]} {fecha_est.year}"
+
+
+def calcular_racha(mis_datos: pd.DataFrame) -> int:
+    """
+    🔥 Racha actual: materias aprobadas consecutivas (por fecha, de la más
+    reciente hacia atrás) sin ningún aplazo registrado en esa materia.
+    """
+    ap = mis_datos[mis_datos["Estado"] == "Aprobada"].copy()
+    if ap.empty:
+        return 0
+    ap["_f"] = pd.to_datetime(ap["Fecha_aprobacion"], errors="coerce")
+    ap = ap.dropna(subset=["_f"]).sort_values("_f")
+    racha = 0
+    for _, r in ap.iloc[::-1].iterrows():
+        apl = pd.to_numeric(r.get("Aplazos", ""), errors="coerce")
+        if pd.isna(apl) or apl == 0:
+            racha += 1
+        else:
+            break
+    return racha
+
+
+def calcular_logros(mis_datos: pd.DataFrame, aprobadas_df: pd.DataFrame, puntos: int) -> list:
+    """Logros PERSONALES (contra tu propia carrera, no contra el squad)."""
+    notas = pd.to_numeric(aprobadas_df["Nota"], errors="coerce") if not aprobadas_df.empty else pd.Series(dtype=float)
+    p1 = pd.to_numeric(mis_datos.get("Nota_parcial1", pd.Series(dtype=object)), errors="coerce")
+    p2 = pd.to_numeric(mis_datos.get("Nota_parcial2", pd.Series(dtype=object)), errors="coerce")
+    tiene_10 = bool((notas == 10).any() or (p1 == 10).any() or (p2 == 10).any())
+
+    aplazos_tot = pd.to_numeric(mis_datos.get("Aplazos", pd.Series(dtype=object)), errors="coerce").fillna(0).sum()
+
+    # RAMBO: 3+ materias aprobadas dentro de un mismo semestre calendario
+    rambo = False
+    fechas = pd.to_datetime(aprobadas_df["Fecha_aprobacion"], errors="coerce").dropna() if not aprobadas_df.empty else pd.Series(dtype="datetime64[ns]")
+    if not fechas.empty:
+        sem = fechas.dt.year.astype(str) + "-S" + ((fechas.dt.month > 6).astype(int) + 1).astype(str)
+        rambo = bool(sem.value_counts().max() >= 3)
+
+    return [
+        ("🩸", "FIRST BLOOD", "Primera materia aprobada",          len(aprobadas_df) >= 1),
+        ("🎯", "HEADSHOT",    "Un 10 en parcial o final",           tiene_10),
+        ("🔫", "RAMBO",       "3 aprobadas en un mismo semestre",   rambo),
+        ("🛡️", "FLAWLESS",    "5+ aprobadas sin ningún aplazo",     len(aprobadas_df) >= 5 and aplazos_tot == 0),
+        ("🪖", "VETERANO",    "10 materias aprobadas",              len(aprobadas_df) >= 10),
+        ("🏅", "TÉCNICO",     "120 créditos (Tecnicatura)",         puntos >= CREDITOS_TOTAL_TECNICATURA),
+    ]
 
 
 def _base_audio_script() -> str:
@@ -743,8 +851,10 @@ def confetti_html() -> str:
 
 
 def _get_examenes_proximos(mis_datos: pd.DataFrame) -> list:
+    """Exámenes con fecha cargada. Solo estados activos (Cursando / Final):
+    las materias ya aprobadas no vuelven a aparecer con su vieja fecha."""
     resultado = []
-    for _, row in mis_datos[mis_datos["Estado"].isin(["Cursando", "Final", "Aprobada"])].iterrows():
+    for _, row in mis_datos[mis_datos["Estado"].isin(["Cursando", "Final"])].iterrows():
         fecha_str = str(row.get("Fecha_examen", "")).strip()
         if not fecha_str or fecha_str in ("", "nan", "NaT", "None"):
             continue
@@ -753,7 +863,7 @@ def _get_examenes_proximos(mis_datos: pd.DataFrame) -> list:
         # en "Cursando" la fecha cargada corresponde a un parcial.
         tipo = "🏆 Final" if row["Estado"] == "Final" else "🎯 Parcial"
         resultado.append({"materia": row["Materia"], "fecha_str": fecha_str, "dias": dias, "tipo": tipo})
-    resultado.sort(key=lambda x: (x["dias"] is None, x["dias"] or 9999))
+    resultado.sort(key=lambda x: (x["dias"] is None, x["dias"] if x["dias"] is not None else 9999))
     return resultado
 
 
@@ -990,6 +1100,25 @@ def grafico_progreso_tiempo(aprobadas_df: pd.DataFrame):
 # 5. VISTAS
 # ─────────────────────────────────────────────
 
+def _boton_borrar_confirmado(col, conn, df, usuario, materia, key_btn: str, conf_key: str) -> bool:
+    """
+    Botón 🗑️ con confirmación en dos toques (anti-dedazo mobile).
+    Devuelve True si se ejecutó el borrado.
+    """
+    if col.button("🗑️", key=key_btn, use_container_width=True, help="Eliminar (requiere 2 toques)"):
+        if st.session_state.get(conf_key, False):
+            st.session_state[conf_key] = False
+            idx_drop = df[(df["Nombre"] == usuario) & (df["Materia"] == materia)].index
+            guardar_df(conn, df.drop(idx_drop).reset_index(drop=True), usuario)
+            st.session_state["play_sound"] = "delete"
+            st.rerun()
+            return True
+        else:
+            st.session_state[conf_key] = True
+            st.rerun()
+    return False
+
+
 def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_df,
                  puntos_logrados, promedio_simple, promedio_pond):
 
@@ -1031,10 +1160,22 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
             unsafe_allow_html=True,
         )
 
+        # 🔥 Racha personal (finales al hilo sin aplazo)
+        racha = calcular_racha(mis_datos)
+        if racha >= 2:
+            fuego = "🔥" * min(racha, 5)
+            st.markdown(
+                f"<div style='background:#1a1200; border:1px solid #e67e22; border-radius:6px; "
+                f"padding:5px 10px; margin:4px 0; text-align:center;'>"
+                f"<span style='color:#e67e22; font-family:monospace; font-size:12px;'>"
+                f"{fuego} RACHA: {racha} al hilo</span></div>",
+                unsafe_allow_html=True,
+            )
+
         egreso = estimar_egreso(aprobadas_df)
         if egreso:
             st.markdown(
-                f"<p style='font-size:11px; color:#aaa;'>🎓 Estimado egreso: "
+                f"<p style='font-size:11px; color:#aaa;'>🎓 Fin estimado (Tecnicatura): "
                 f"<strong style='color:#2ecc71'>{egreso}</strong></p>",
                 unsafe_allow_html=True,
             )
@@ -1065,15 +1206,16 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
             unsafe_allow_html=True,
         )
 
-        # Próximos exámenes en inicio (máx. 3)
-        examenes = _get_examenes_proximos(mis_datos)
+        # Próximos exámenes en inicio (máx. 3, solo futuros o de hoy)
+        examenes = [e for e in _get_examenes_proximos(mis_datos)
+                    if e["dias"] is not None and e["dias"] >= 0]
         if examenes:
             st.markdown("---")
             st.markdown("#### 📅 PRÓXIMOS EXÁMENES:")
             for ex in examenes[:3]:
                 dias    = ex["dias"]
                 urgente = dias is not None and dias <= 7
-                badge   = f"⚠️ {dias}d" if urgente else (f"📅 {dias}d" if dias is not None else "")
+                badge   = "🚨 HOY" if dias == 0 else (f"⚠️ {dias}d" if urgente else f"📅 {dias}d")
                 clase   = "exam-card exam-urgent" if urgente else "exam-card"
                 st.markdown(
                     f"<div class='{clase}'><strong>{ex['materia']}</strong> <small style='color:#888'>{ex['tipo']}</small> {badge}<br>"
@@ -1085,8 +1227,7 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
         st.markdown("#### ⚔️ MATERIAS EN CURSO:")
 
         # Alerta de clase hoy
-        import datetime as _dt
-        hoy_nombre = DIAS_ORDEN[_dt.date.today().weekday()]
+        hoy_nombre = DIAS_ORDEN[date.today().weekday()]
         clases_hoy = [
             m for m in mis_datos[mis_datos["Estado"] == "Cursando"]["Materia"].tolist()
             if HORARIOS.get(m, {}).get("dia") == hoy_nombre
@@ -1100,11 +1241,10 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
                 unsafe_allow_html=True,
             )
 
-        if cursando_df.empty and mis_datos[mis_datos["Estado"] == "Final"].empty:
+        if cursando_df.empty and final_df.empty:
             st.info("No estás cursando ninguna materia. ¡Inscribite en PRÓX.!")
         else:
             # ── Materias en Final (inscripto, esperando aprobar) ──────────
-            final_df = mis_datos[mis_datos["Estado"] == "Final"]
             if not final_df.empty:
                 st.markdown("##### 📝 Inscripto a final:")
                 for i, row in final_df.iterrows():
@@ -1112,6 +1252,7 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
                     tipo_c   = row["Cursada"]
                     key_ap   = f"aprobar_final_{i}_{materia}"
                     key_fex  = f"editfecha_final_{i}_{materia}"
+                    conf_key = f"confdel_final_{i}_{materia}"
 
                     fecha_ex = str(row.get("Fecha_examen", "")).strip()
                     dias     = dias_restantes(fecha_ex) if fecha_ex and fecha_ex not in ("", "nan", "NaT", "None") else None
@@ -1120,28 +1261,42 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
                     else:
                         badge = ""
 
+                    aplazos = pd.to_numeric(row.get("Aplazos", ""), errors="coerce")
+                    aplazos_badge = (
+                        f" <span style='color:#ff4b4b; font-size:10px;'>💀 x{int(aplazos)}</span>"
+                        if pd.notna(aplazos) and aplazos > 0 else ""
+                    )
+
                     st.markdown(
                         f"<div style='background:#0d1a2e; border-left:4px solid #3498db; "
                         f"border-radius:6px; padding:10px 14px; margin-bottom:4px;'>"
                         f"📝 <strong>{materia}</strong> "
-                        f"<span style='color:#aaa; font-size:11px;'>[{tipo_c}] {badge}</span>"
+                        f"<span style='color:#aaa; font-size:11px;'>[{tipo_c}] {badge}</span>{aplazos_badge}"
                         + (f"<br><span style='color:#f1c40f; font-size:10px;'>{get_horario_badge(materia)}</span>" if get_horario_badge(materia) else "")
                         + f"</div>",
                         unsafe_allow_html=True,
                     )
 
-                    bc1, bc2, bc3, _ = st.columns([2, 1, 1, 3])
+                    bc1, bc2, bc3, bc4, _ = st.columns([2, 1, 1, 1, 2])
                     if bc1.button("✅ Aprobé el final", key=f"apfinal_{i}", use_container_width=True):
                         st.session_state[key_ap]  = not st.session_state.get(key_ap, False)
                         st.session_state[key_fex] = False
                     if bc2.button("📅", key=f"fexfinal_{i}", use_container_width=True, help="Editar fecha de mesa de final"):
                         st.session_state[key_fex] = not st.session_state.get(key_fex, False)
                         st.session_state[key_ap]  = False
-                    if bc3.button("🗑️", key=f"delfinal_{i}", use_container_width=True):
-                        idx_drop = df[(df["Nombre"] == usuario) & (df["Materia"] == materia)].index
-                        guardar_df(conn, df.drop(idx_drop).reset_index(drop=True))
+                    if bc3.button("❌", key=f"aplazo_{i}", use_container_width=True, help="Desaprobé el final (suma un aplazo)"):
+                        mask = (df["Nombre"] == usuario) & (df["Materia"] == materia)
+                        apl_act = pd.to_numeric(row.get("Aplazos", ""), errors="coerce")
+                        nuevo_apl = int(apl_act) + 1 if pd.notna(apl_act) else 1
+                        df.loc[mask, "Aplazos"] = nuevo_apl
+                        df.loc[mask, "Fecha_examen"] = ""   # la mesa vieja ya pasó
+                        guardar_df(conn, df, usuario)
                         st.session_state["play_sound"] = "delete"
                         st.rerun()
+                    _boton_borrar_confirmado(bc4, conn, df, usuario, materia,
+                                             key_btn=f"delfinal_{i}", conf_key=conf_key)
+                    if st.session_state.get(conf_key, False):
+                        st.warning(f"⚠️ Tocá 🗑️ de nuevo para eliminar **{materia}**")
 
                     # Editar fecha de mesa de final (por si te la corren)
                     if st.session_state.get(key_fex, False):
@@ -1157,7 +1312,7 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
                                     (df["Nombre"] == usuario) & (df["Materia"] == materia),
                                     "Fecha_examen"
                                 ] = str(nueva_fex)
-                                guardar_df(conn, df)
+                                guardar_df(conn, df, usuario)
                                 st.session_state[key_fex]      = False
                                 st.session_state["play_sound"] = "click"
                                 st.rerun()
@@ -1169,9 +1324,9 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
                             if st.form_submit_button("🎖️ REGISTRAR VICTORIA", use_container_width=True):
                                 df.loc[
                                     (df["Nombre"] == usuario) & (df["Materia"] == materia),
-                                    ["Estado", "Nota", "Fecha_aprobacion"]
-                                ] = ["Aprobada", nota_input, str(fecha_ap)]
-                                guardar_df(conn, df)
+                                    ["Estado", "Nota", "Fecha_aprobacion", "Fecha_examen"]
+                                ] = ["Aprobada", nota_input, str(fecha_ap), ""]
+                                guardar_df(conn, df, usuario)
                                 st.session_state[key_ap]          = False
                                 st.session_state["show_confetti"] = True
                                 st.rerun()
@@ -1184,9 +1339,13 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
                     tipo_c   = row["Cursada"]
                     key_flag = f"aprobar_{i}_{materia}"
                     key_edit = f"editar_{i}_{materia}"
+                    conf_key = f"confdel_curs_{i}_{materia}"
 
                     p1v = pd.to_numeric(row.get("Nota_parcial1", ""), errors="coerce")
                     p2v = pd.to_numeric(row.get("Nota_parcial2", ""), errors="coerce")
+                    # Un 0 guardado significa "sin nota", no un cero real
+                    p1v = p1v if pd.notna(p1v) and p1v > 0 else float("nan")
+                    p2v = p2v if pd.notna(p2v) and p2v > 0 else float("nan")
                     parciales_str = ""
                     if pd.notna(p1v) or pd.notna(p2v):
                         p1_str = f"P1:{int(p1v)}" if pd.notna(p1v) else "P1:-"
@@ -1219,11 +1378,10 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
                     if bc2.button("✏️", key=f"edit_{i}", use_container_width=True, help="Editar parciales / fecha"):
                         st.session_state[key_edit] = not st.session_state.get(key_edit, False)
                         st.session_state[key_flag] = False
-                    if bc3.button("🗑️", key=f"del_{i}", use_container_width=True, help="Eliminar"):
-                        idx_drop = df[(df["Nombre"] == usuario) & (df["Materia"] == materia)].index
-                        guardar_df(conn, df.drop(idx_drop).reset_index(drop=True))
-                        st.session_state["play_sound"] = "delete"
-                        st.rerun()
+                    _boton_borrar_confirmado(bc3, conn, df, usuario, materia,
+                                             key_btn=f"del_{i}", conf_key=conf_key)
+                    if st.session_state.get(conf_key, False):
+                        st.warning(f"⚠️ Tocá 🗑️ de nuevo para eliminar **{materia}**")
 
                     # Formulario: terminé de cursar → ¿tiene final?
                     if st.session_state.get(key_flag, False):
@@ -1236,9 +1394,9 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
                                 if st.form_submit_button("🎖️ APROBAR", use_container_width=True):
                                     df.loc[
                                         (df["Nombre"] == usuario) & (df["Materia"] == materia),
-                                        ["Estado", "Nota", "Fecha_aprobacion"]
-                                    ] = ["Aprobada", nota_input, str(fecha_ap)]
-                                    guardar_df(conn, df)
+                                        ["Estado", "Nota", "Fecha_aprobacion", "Fecha_examen"]
+                                    ] = ["Aprobada", nota_input, str(fecha_ap), ""]
+                                    guardar_df(conn, df, usuario)
                                     st.session_state[key_flag]        = False
                                     st.session_state["show_confetti"] = True
                                     st.rerun()
@@ -1257,7 +1415,7 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
                                     (df["Nombre"] == usuario) & (df["Materia"] == materia),
                                     "Estado"
                                 ] = "Final"
-                                guardar_df(conn, df)
+                                guardar_df(conn, df, usuario)
                                 st.session_state[key_flag]     = False
                                 st.session_state["play_sound"] = "finishhim"
                                 st.rerun()
@@ -1274,9 +1432,9 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
                                     if st.form_submit_button("🎖️ APROBAR", use_container_width=True):
                                         df.loc[
                                             (df["Nombre"] == usuario) & (df["Materia"] == materia),
-                                            ["Estado", "Nota", "Fecha_aprobacion"]
-                                        ] = ["Aprobada", nota_input, str(fecha_ap)]
-                                        guardar_df(conn, df)
+                                            ["Estado", "Nota", "Fecha_aprobacion", "Fecha_examen"]
+                                        ] = ["Aprobada", nota_input, str(fecha_ap), ""]
+                                        guardar_df(conn, df, usuario)
                                         st.session_state[tiene_final_key]  = None
                                         st.session_state["show_confetti"] = True
                                         st.rerun()
@@ -1306,17 +1464,19 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
                             )
                             if st.form_submit_button("💾 GUARDAR", use_container_width=True):
                                 mask = (df["Nombre"] == usuario) & (df["Materia"] == materia)
-                                df.loc[mask, "Nota_parcial1"] = p1 if p1 > 0 else 0
-                                df.loc[mask, "Nota_parcial2"] = p2 if p2 > 0 else 0
+                                # 0 = sin nota → guardar vacío, no un cero literal
+                                df.loc[mask, "Nota_parcial1"] = p1 if p1 > 0 else ""
+                                df.loc[mask, "Nota_parcial2"] = p2 if p2 > 0 else ""
                                 df.loc[mask, "Fecha_examen"]  = str(fecha_ex)
                                 df.loc[mask, "Cursada"]       = nuevo_tipo
-                                guardar_df(conn, df)
+                                guardar_df(conn, df, usuario)
                                 st.session_state[key_edit] = False
-                                # Headshot si algún parcial es 10
-                                if p1 == 10 or p2 == 10:
-                                    st.session_state["play_sound"] = "headshot"
-                                else:
-                                    st.session_state["play_sound"] = "click"
+                                # 🎯 Headshot SOLO si el 10 es nuevo (antes no lo tenía)
+                                nuevo_10 = (
+                                    (p1 == 10 and (pd.isna(p1_act) or p1_act != 10)) or
+                                    (p2 == 10 and (pd.isna(p2_act) or p2_act != 10))
+                                )
+                                st.session_state["play_sound"] = "headshot" if nuevo_10 else "click"
                                 st.rerun()
 
 
@@ -1365,10 +1525,19 @@ def vista_proximas(conn, df, usuario, mis_datos, aprobadas_df):
     regularizadas = mis_datos[mis_datos["Estado"].isin(["Aprobada", "Final"])]["Materia"].tolist()
     en_final_list = mis_datos[mis_datos["Estado"] == "Final"]["Materia"].tolist()
 
+    # 🛡️ Matcheo robusto: comparamos por nombre NORMALIZADO (sin tildes /
+    # mayúsculas / espacios de más), así una diferencia de tipeo en el Sheet
+    # no bloquea una materia por error.
+    regularizadas_norm = {_norm_nombre(m) for m in regularizadas}
+    en_final_norm      = {_norm_nombre(m) for m in en_final_list}
+
+    def _correlativas_ok(info) -> bool:
+        return all(_norm_nombre(c) in regularizadas_norm for c in info["correlativas"])
+
     disponibles = [m for m, info in PLAN_ESTUDIOS.items()
-                   if m not in ya_registradas and all(c in regularizadas for c in info["correlativas"])]
+                   if m not in ya_registradas and _correlativas_ok(info)]
     bloqueadas  = [m for m, info in PLAN_ESTUDIOS.items()
-                   if m not in ya_registradas and not all(c in regularizadas for c in info["correlativas"])]
+                   if m not in ya_registradas and not _correlativas_ok(info)]
 
     if disponibles:
         st.markdown("##### 🔓 Disponibles para cursar:")
@@ -1385,17 +1554,12 @@ def vista_proximas(conn, df, usuario, mis_datos, aprobadas_df):
             c1.success(f"**{d}** ({PLAN_ESTUDIOS[d]['puntos']} pts){horario_str}")
 
             # Aviso: se habilita por REGULARIDAD (correlativa con final aún pendiente)
-            corr_pendiente_final = [c for c in PLAN_ESTUDIOS[d]["correlativas"] if c in en_final_list]
+            corr_pendiente_final = [c for c in PLAN_ESTUDIOS[d]["correlativas"] if _norm_nombre(c) in en_final_norm]
             if corr_pendiente_final:
                 c1.caption(f"🟠 Habilitada por regularidad — todavía debés el final de: {', '.join(corr_pendiente_final)}")
 
-            tipo_key = f"tipo_{d}"
-            if tipo_key not in st.session_state:
-                st.session_state[tipo_key] = "Regular"
-            st.session_state[tipo_key] = c2.selectbox(
-                "Modalidad:", ["Regular", "Contracursada"], key=f"sel_{d}",
-                index=["Regular", "Contracursada"].index(st.session_state[tipo_key]),
-            )
+            # El widget maneja su propio estado vía key — sin index ni asignación manual
+            tipo_sel = c2.selectbox("Modalidad:", ["Regular", "Contracursada"], key=f"sel_{d}")
 
             if conflicto:
                 c3.button("⚔️ CURSAR", key=f"in_{d}", disabled=True, use_container_width=True)
@@ -1411,31 +1575,44 @@ def vista_proximas(conn, df, usuario, mis_datos, aprobadas_df):
                 if c3.button("⚔️ CURSAR", key=f"in_{d}", use_container_width=True):
                     nueva = pd.DataFrame([{
                         "Nombre": usuario, "Materia": d, "Estado": "Cursando",
-                        "Cursada": st.session_state[tipo_key],
+                        "Cursada": tipo_sel,
                         "Nota": "", "Nota_parcial1": "", "Nota_parcial2": "",
-                        "Fecha_aprobacion": "", "Fecha_examen": "",
+                        "Fecha_aprobacion": "", "Fecha_examen": "", "Aplazos": "",
                     }])
-                    guardar_df(conn, pd.concat([df, nueva], ignore_index=True))
+                    guardar_df(conn, pd.concat([df, nueva], ignore_index=True), usuario)
                     st.session_state["play_sound"] = "gunshot"
                     st.rerun()
 
     if bloqueadas:
         st.markdown("---")
         st.markdown("##### 🔒 Bloqueadas (faltan correlativas):")
+        st.caption("Si tu facultad te habilita a anotarte igual (condicional / excepción), usá ⚔️ Igual.")
         for b in bloqueadas:
-            faltan = [c for c in PLAN_ESTUDIOS[b]["correlativas"] if c not in regularizadas]
-            st.markdown(
-                f"<div class='warning-card'><strong>{b}</strong> — falta: {', '.join(faltan)}</div>",
+            faltan = [c for c in PLAN_ESTUDIOS[b]["correlativas"]
+                      if _norm_nombre(c) not in regularizadas_norm]
+            c1b, c2b = st.columns([4, 1])
+            c1b.markdown(
+                f"<div class='warning-card'><strong>{b}</strong> "
+                f"({PLAN_ESTUDIOS[b]['puntos']} pts) — falta: {', '.join(faltan)}</div>",
                 unsafe_allow_html=True,
             )
+            if c2b.button("⚔️ Igual", key=f"force_{b}", use_container_width=True,
+                          help="Anotarte pese a la correlativa pendiente"):
+                nueva = pd.DataFrame([{
+                    "Nombre": usuario, "Materia": b, "Estado": "Cursando",
+                    "Cursada": "Regular",
+                    "Nota": "", "Nota_parcial1": "", "Nota_parcial2": "",
+                    "Fecha_aprobacion": "", "Fecha_examen": "", "Aplazos": "",
+                }])
+                guardar_df(conn, pd.concat([df, nueva], ignore_index=True), usuario)
+                st.session_state["play_sound"] = "gunshot"
+                st.rerun()
 
 
 def vista_horarios(mis_datos):
     st.header("📅 GRILLA DE HORARIOS")
 
-    import datetime as _dt
-    hoy_idx  = _dt.date.today().weekday()
-    hoy_nombre = DIAS_ORDEN[hoy_idx] if hoy_idx < 7 else ""
+    hoy_nombre = DIAS_ORDEN[date.today().weekday()]
 
     # Materias que el usuario cursa activamente (van a clase esta semana).
     # Las que están en "Final" ya no ocupan horario semanal.
@@ -1495,7 +1672,7 @@ def vista_horarios(mis_datos):
 def vista_historial(conn, df, usuario, mis_datos):
     st.header("✅ REGISTRO DE COMBATE")
     cols_mostrar = [c for c in ["Materia", "Estado", "Nota", "Nota_parcial1", "Nota_parcial2",
-                                 "Cursada", "Fecha_aprobacion", "Fecha_examen"] if c in mis_datos.columns]
+                                 "Cursada", "Aplazos", "Fecha_aprobacion", "Fecha_examen"] if c in mis_datos.columns]
     st.dataframe(mis_datos[cols_mostrar].sort_values("Estado"), use_container_width=True, hide_index=True)
 
     # Editar materia aprobada
@@ -1511,7 +1688,7 @@ def vista_historial(conn, df, usuario, mis_datos):
                 mask = (df["Nombre"] == usuario) & (df["Materia"] == mat_sel)
                 df.loc[mask, "Nota"]             = nueva_nota
                 df.loc[mask, "Fecha_aprobacion"] = str(nueva_fecha)
-                guardar_df(conn, df)
+                guardar_df(conn, df, usuario)
                 st.session_state["play_sound"] = "click"
                 st.success(f"✅ {mat_sel} actualizada.")
                 st.rerun()
@@ -1531,9 +1708,26 @@ def vista_estadisticas(df, usuario, mis_datos, aprobadas_df, cursando_df, final_
 
     egreso = estimar_egreso(aprobadas_df)
     if egreso:
-        st.info(f"🎓 A tu ritmo actual, terminarías la carrera aproximadamente en **{egreso}**.")
+        st.info(f"🎓 A tu ritmo actual, terminarías el plan cargado (Tecnicatura, {TOTAL_MATERIAS} materias) aproximadamente en **{egreso}**.")
     else:
         st.info("💡 Registrá fechas de aprobación en INICIO para estimar cuándo terminás la carrera.")
+
+    st.markdown("---")
+
+    # 🎖️ Logros personales
+    st.markdown("#### 🎖️ MEDALLAS DE CAMPAÑA")
+    logros = calcular_logros(mis_datos, aprobadas_df, puntos_logrados)
+    cols_logros = st.columns(len(logros))
+    for col, (emoji, nombre, desc, on) in zip(cols_logros, logros):
+        clase = "logro-card logro-on" if on else "logro-card logro-off"
+        col.markdown(
+            f"<div class='{clase}'>"
+            f"<div style='font-size:26px;'>{emoji}</div>"
+            f"<div style='font-family:monospace; font-size:10px; color:#f1c40f; margin-top:4px;'>{nombre}</div>"
+            f"<div style='font-size:9px; color:#888; margin-top:2px;'>{desc}</div>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
 
     st.markdown("---")
 
@@ -1666,23 +1860,64 @@ def main():
 
     usuarios = sorted(df["Nombre"].dropna().unique().tolist())
     usuario  = st.selectbox("👤 SOLDADO:", ["Seleccionar..."] + usuarios, label_visibility="collapsed")
+
+    # ➕ Alta de nuevo soldado (sin tocar el Sheet a mano)
+    with st.expander("➕ NUEVO RECLUTA"):
+        with st.form("form_nuevo_recluta"):
+            nombre_nuevo = st.text_input("Nombre del soldado:")
+            materia_ini  = st.selectbox("Primera materia:", list(PLAN_ESTUDIOS.keys()))
+            estado_ini   = st.selectbox("Estado inicial:", ["Cursando", "Aprobada"])
+            nota_ini     = st.number_input("Nota (solo si ya la aprobó):", 0, 10, 0)
+            if st.form_submit_button("🎖️ ALISTAR", use_container_width=True):
+                nombre_limpio = nombre_nuevo.strip()
+                if not nombre_limpio:
+                    st.error("⚠️ Ingresá un nombre.")
+                elif nombre_limpio in usuarios:
+                    st.error(f"⚠️ **{nombre_limpio}** ya está alistado.")
+                else:
+                    nueva = pd.DataFrame([{
+                        "Nombre": nombre_limpio, "Materia": materia_ini,
+                        "Estado": estado_ini, "Cursada": "Regular",
+                        "Nota": nota_ini if (estado_ini == "Aprobada" and nota_ini >= 4) else "",
+                        "Nota_parcial1": "", "Nota_parcial2": "",
+                        "Fecha_aprobacion": str(date.today()) if estado_ini == "Aprobada" else "",
+                        "Fecha_examen": "", "Aplazos": "",
+                    }])
+                    guardar_df(conn, pd.concat([df, nueva], ignore_index=True), nombre_limpio)
+                    st.session_state["play_sound"] = "gunshot"
+                    st.success(f"🎖️ ¡Bienvenido al squad, {nombre_limpio}!")
+                    st.rerun()
+
     if usuario == "Seleccionar...":
         return
 
-    # Navegación — 6 secciones
-    nav_cols = st.columns(6)
+    # Navegación — 6 secciones (pills si están disponibles; fallback a botones)
     menus = [
-        ("🏠 INICIO",    "Inicio"),
-        ("📝 PRÓX.",     "Proximas"),
-        ("✅ HIST.",     "Historial"),
-        ("👥 GRUPO",    "Grupo"),
-        ("📅 HORA.",    "Horarios"),
-        ("📊 STATS",    "Stats"),
+        ("🏠 INICIO", "Inicio"),
+        ("📝 PRÓX.",  "Proximas"),
+        ("✅ HIST.",  "Historial"),
+        ("👥 GRUPO", "Grupo"),
+        ("📅 HORA.", "Horarios"),
+        ("📊 STATS", "Stats"),
     ]
-    for col, (label, key) in zip(nav_cols, menus):
-        if col.button(label, use_container_width=True):
-            st.session_state.menu = key
-            st.rerun()
+    label_por_key = {k: l for l, k in menus}
+    key_por_label = {l: k for l, k in menus}
+
+    if hasattr(st, "pills"):
+        sel = st.pills(
+            "NAV",
+            options=[l for l, _ in menus],
+            default=label_por_key.get(st.session_state.menu, menus[0][0]),
+            label_visibility="collapsed",
+        )
+        if sel:
+            st.session_state.menu = key_por_label[sel]
+    else:
+        nav_cols = st.columns(6)
+        for col, (label, key) in zip(nav_cols, menus):
+            # Sin st.rerun(): el clic ya dispara el rerun y el despacho ocurre después
+            if col.button(label, use_container_width=True):
+                st.session_state.menu = key
 
     st.markdown("---")
 
