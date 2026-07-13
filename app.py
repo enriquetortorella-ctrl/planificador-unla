@@ -171,6 +171,10 @@ CREDITOS_TOTAL_TECNICATURA  = 120
 CREDITOS_TOTAL_LICENCIATURA = 240
 TOTAL_MATERIAS = len(PLAN_ESTUDIOS)
 
+# Estados que la app considera "reales". Cualquier fila con un estado fuera de
+# este set es basura/fantasma (queda invisible en la UI pero rompe la lógica).
+ESTADOS_VALIDOS = {"Cursando", "Final", "Aprobada"}
+
 MESES_ES = ["enero", "febrero", "marzo", "abril", "mayo", "junio",
             "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
 
@@ -249,6 +253,22 @@ MATERIAS_SIN_FINAL = {
 # ─────────────────────────────────────────────
 # 3. HELPERS
 # ─────────────────────────────────────────────
+def _inscribir_materia(conn, df, usuario, materia, modalidad="Regular"):
+    """
+    Anota al usuario en una materia como 'Cursando'.
+    🧹 Anti-duplicado: borra cualquier fila previa de ESA materia para ESE
+    usuario (fantasmas, estados basura, duplicados) antes de crear la nueva.
+    """
+    df_limpio = df[~((df["Nombre"] == usuario) & (df["Materia"] == materia))].copy()
+    nueva = pd.DataFrame([{
+        "Nombre": usuario, "Materia": materia, "Estado": "Cursando",
+        "Cursada": modalidad,
+        "Nota": "", "Nota_parcial1": "", "Nota_parcial2": "",
+        "Fecha_aprobacion": "", "Fecha_examen": "", "Aplazos": "",
+    }])
+    guardar_df(conn, pd.concat([df_limpio, nueva], ignore_index=True), usuario)
+
+
 def _norm_nombre(s: str) -> str:
     """
     Normaliza un nombre de materia para comparar correlativas sin que una
@@ -1517,7 +1537,9 @@ def vista_grupo(df):
 
 def vista_proximas(conn, df, usuario, mis_datos, aprobadas_df):
     st.header("📝 PRÓXIMOS OBJETIVOS")
-    ya_registradas = mis_datos["Materia"].tolist()
+    # Solo cuentan como "ya registradas" las materias en un estado real.
+    # Una fila con estado basura no debe ocultar la materia de esta lista.
+    ya_registradas = mis_datos[mis_datos["Estado"].isin(ESTADOS_VALIDOS)]["Materia"].tolist()
 
     # 🔑 CORRELATIVAS: una materia habilita a cursar las siguientes cuando está
     # REGULARIZADA (cursada aprobada → estado "Final") o totalmente "Aprobada".
@@ -1573,13 +1595,7 @@ def vista_proximas(conn, df, usuario, mis_datos, aprobadas_df):
                 )
             else:
                 if c3.button("⚔️ CURSAR", key=f"in_{d}", use_container_width=True):
-                    nueva = pd.DataFrame([{
-                        "Nombre": usuario, "Materia": d, "Estado": "Cursando",
-                        "Cursada": tipo_sel,
-                        "Nota": "", "Nota_parcial1": "", "Nota_parcial2": "",
-                        "Fecha_aprobacion": "", "Fecha_examen": "", "Aplazos": "",
-                    }])
-                    guardar_df(conn, pd.concat([df, nueva], ignore_index=True), usuario)
+                    _inscribir_materia(conn, df, usuario, d, st.session_state.get(f"sel_{d}", "Regular"))
                     st.session_state["play_sound"] = "gunshot"
                     st.rerun()
 
@@ -1598,13 +1614,7 @@ def vista_proximas(conn, df, usuario, mis_datos, aprobadas_df):
             )
             if c2b.button("⚔️ Igual", key=f"force_{b}", use_container_width=True,
                           help="Anotarte pese a la correlativa pendiente"):
-                nueva = pd.DataFrame([{
-                    "Nombre": usuario, "Materia": b, "Estado": "Cursando",
-                    "Cursada": "Regular",
-                    "Nota": "", "Nota_parcial1": "", "Nota_parcial2": "",
-                    "Fecha_aprobacion": "", "Fecha_examen": "", "Aplazos": "",
-                }])
-                guardar_df(conn, pd.concat([df, nueva], ignore_index=True), usuario)
+                _inscribir_materia(conn, df, usuario, b, "Regular")
                 st.session_state["play_sound"] = "gunshot"
                 st.rerun()
 
@@ -1692,6 +1702,57 @@ def vista_historial(conn, df, usuario, mis_datos):
                 st.session_state["play_sound"] = "click"
                 st.success(f"✅ {mat_sel} actualizada.")
                 st.rerun()
+
+    # ── 🩺 CHEQUEO DE INTEGRIDAD ──────────────────────────────────────────
+    # Detecta filas que rompen la lógica: estado inválido (fantasmas), materia
+    # que no matchea el plan (typo de nombre) o duplicados de la misma materia.
+    planes_norm = {_norm_nombre(m): m for m in PLAN_ESTUDIOS}
+
+    filas_estado_malo = mis_datos[~mis_datos["Estado"].isin(ESTADOS_VALIDOS)]
+    filas_huerfanas   = mis_datos[~mis_datos["Materia"].apply(lambda m: _norm_nombre(m) in planes_norm)]
+    dup_materias      = mis_datos["Materia"].value_counts()
+    dup_materias      = dup_materias[dup_materias > 1].index.tolist()
+
+    hay_problemas = (not filas_estado_malo.empty) or (not filas_huerfanas.empty) or bool(dup_materias)
+
+    if hay_problemas:
+        st.markdown("---")
+        st.markdown("#### 🩺 CHEQUEO DE INTEGRIDAD")
+        st.warning("Encontré filas que pueden estar rompiendo la lógica (materias que no aparecen en PRÓX., correlativas que no cierran, etc.). Revisalas y borrá las que sobren.")
+
+        problematicas = pd.concat([filas_estado_malo, filas_huerfanas]).drop_duplicates()
+        for i, row in problematicas.iterrows():
+            materia = row["Materia"]
+            estado  = row["Estado"]
+            motivos = []
+            if estado not in ESTADOS_VALIDOS:
+                motivos.append(f"estado inválido: '{estado or '(vacío)'}'")
+            if _norm_nombre(materia) not in planes_norm:
+                motivos.append("nombre no coincide con el plan")
+            c1i, c2i = st.columns([4, 1])
+            c1i.markdown(
+                f"<div class='warning-card'><strong>{materia or '(sin materia)'}</strong> "
+                f"<span style='color:#aaa; font-size:12px;'>— {', '.join(motivos)}</span></div>",
+                unsafe_allow_html=True,
+            )
+            if c2i.button("🗑️ Borrar", key=f"fixdel_{i}", use_container_width=True):
+                idx_drop = df[(df["Nombre"] == usuario)
+                              & (df["Materia"] == materia)
+                              & (df["Estado"] == estado)].index
+                guardar_df(conn, df.drop(idx_drop).reset_index(drop=True), usuario)
+                st.session_state["play_sound"] = "delete"
+                st.rerun()
+
+        if dup_materias:
+            st.markdown(
+                f"<div style='color:#e67e22; font-size:13px; margin-top:8px;'>"
+                f"⚠️ Materias duplicadas (más de una fila): {', '.join(dup_materias)}. "
+                f"Volver a anotarte en ellas desde PRÓX. limpia el duplicado automáticamente.</div>",
+                unsafe_allow_html=True,
+            )
+    else:
+        st.markdown("---")
+        st.caption("🩺 Integridad OK — todas tus filas tienen estado y nombre válidos.")
 
 
 def vista_estadisticas(df, usuario, mis_datos, aprobadas_df, cursando_df, final_df,
