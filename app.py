@@ -152,19 +152,52 @@ PLAN_ESTUDIOS = {
     "Microeconomía II":                                  {"periodo": "2° Cuat.", "puntos": 6,  "correlativas": ["Microeconomía I"]},
     "Macroeconomía":                                     {"periodo": "2° Cuat.", "puntos": 6,  "correlativas": ["Empresa, Economía y Sociedad", "Microeconomía I"]},
     "Taller de Práctica Preprofesional":                 {"periodo": "2° Cuat.", "puntos": 5,  "correlativas": ["Comercialización", "Costos Empresariales"]},
+    # ── 3er año (Licenciatura) ───────────────────────────────────────────
+    "Plan de Negocios":                                  {"periodo": "1° Cuat.", "puntos": 8,  "correlativas": ["Costos Empresariales"]},
+    "Organización de la Producción y la Tecnología":     {"periodo": "1° Cuat.", "puntos": 6,  "correlativas": ["Control de Gestión"]},
+    "Formulación de Proyectos de Inversión":             {"periodo": "1° Cuat.", "puntos": 7,  "correlativas": ["Estadística"]},
+    "Economía Bancaria y Financiera":                    {"periodo": "1° Cuat.", "puntos": 6,  "correlativas": ["Microeconomía II", "Macroeconomía"]},
+    "Evaluación de Proyectos de Inversión":              {"periodo": "2° Cuat.", "puntos": 7,  "correlativas": ["Formulación de Proyectos de Inversión"]},
+    "Relaciones Laborales":                              {"periodo": "2° Cuat.", "puntos": 6,  "correlativas": ["Organización de la Producción y la Tecnología"]},
+    "Sistemas de Organización":                          {"periodo": "2° Cuat.", "puntos": 6,  "correlativas": ["Organización de la Producción y la Tecnología"]},
+    "Principios de Tributación":                         {"periodo": "2° Cuat.", "puntos": 6,  "correlativas": ["Derecho Comercial", "Control de Gestión"]},
+    # ── 4to año (Licenciatura) ───────────────────────────────────────────
+    "Financiamiento":                                    {"periodo": "1° Cuat.", "puntos": 8,  "correlativas": ["Economía Bancaria y Financiera"]},
+    "Tecnología y Ciencia de Datos":                     {"periodo": "1° Cuat.", "puntos": 6,  "correlativas": ["Sistemas de Organización"]},
+    "Taller de Proyecto Empresarial":                    {"periodo": "Anual",    "puntos": 11, "correlativas": ["Plan de Negocios", "Evaluación de Proyectos de Inversión"]},
+    "Planeamiento Estratégico":                          {"periodo": "1° Cuat.", "puntos": 6,  "correlativas": ["Sistemas de Organización"]},
+    "Política Económica":                                {"periodo": "2° Cuat.", "puntos": 5,  "correlativas": ["Economía Bancaria y Financiera"]},
+    "Inteligencia de Negocios":                          {"periodo": "2° Cuat.", "puntos": 6,  "correlativas": ["Tecnología y Ciencia de Datos"]},
+    "Comercio Exterior":                                 {"periodo": "2° Cuat.", "puntos": 5,  "correlativas": ["Planeamiento Estratégico"]},
+    "Inglés I":                                          {"periodo": "2° Cuat.", "puntos": 5,  "correlativas": []},
+    # ── Seminarios optativos (oficialmente: requieren toda la Tecnicatura
+    #    aprobada; se modela con la materia de cierre como correlativa) ────
+    "Seminario Optativo 1":                              {"periodo": "1° Cuat.", "puntos": 4,  "correlativas": ["Taller de Práctica Preprofesional"]},
+    "Seminario Optativo 2":                              {"periodo": "2° Cuat.", "puntos": 4,  "correlativas": ["Taller de Práctica Preprofesional"]},
+    "Seminario Optativo 3":                              {"periodo": "1° Cuat.", "puntos": 4,  "correlativas": ["Taller de Práctica Preprofesional"]},
+    "Seminario Optativo 4":                              {"periodo": "2° Cuat.", "puntos": 4,  "correlativas": ["Taller de Práctica Preprofesional"]},
 }
 
 # Áreas para radar chart
 AREAS = {
     "Matemática":     ["Matemática I", "Matemática II", "Cálculo Financiero", "Estadística"],
     "Económica":      ["Introducción a Economía Empresarial", "Historia Económica Contemporánea",
-                       "Empresa, Economía y Sociedad", "Microeconomía I", "Microeconomía II", "Macroeconomía"],
+                       "Empresa, Economía y Sociedad", "Microeconomía I", "Microeconomía II", "Macroeconomía",
+                       "Economía Bancaria y Financiera", "Política Económica", "Comercio Exterior",
+                       "Financiamiento"],
     "Administración": ["Organización y Gestión", "Comercialización", "Costos Empresariales",
                        "Control de Gestión", "Taller de Práctica Preprofesional",
                        "Seminario de Pensamiento Nacional Latinoamericano",
-                       "Seminario de Justicia y Derechos Humanos"],
-    "Jurídica":       ["Derecho Comercial"],
-    "Comunicación":   ["Taller de Comunicación y Producción de Textos", "Contabilidad"],
+                       "Seminario de Justicia y Derechos Humanos",
+                       "Plan de Negocios", "Organización de la Producción y la Tecnología",
+                       "Formulación de Proyectos de Inversión", "Evaluación de Proyectos de Inversión",
+                       "Relaciones Laborales", "Sistemas de Organización",
+                       "Taller de Proyecto Empresarial", "Planeamiento Estratégico",
+                       "Tecnología y Ciencia de Datos", "Inteligencia de Negocios",
+                       "Seminario Optativo 1", "Seminario Optativo 2",
+                       "Seminario Optativo 3", "Seminario Optativo 4"],
+    "Jurídica":       ["Derecho Comercial", "Principios de Tributación"],
+    "Comunicación":   ["Taller de Comunicación y Producción de Textos", "Contabilidad", "Inglés I"],
 }
 
 CREDITOS_TOTAL_TECNICATURA  = 120
@@ -247,6 +280,11 @@ MATERIAS_SIN_FINAL = {
     "Seminario de Pensamiento Nacional Latinoamericano",
     "Taller de Comunicación y Producción de Textos",
     "Taller de Práctica Preprofesional",
+    "Taller de Proyecto Empresarial",
+    "Seminario Optativo 1",
+    "Seminario Optativo 2",
+    "Seminario Optativo 3",
+    "Seminario Optativo 4",
 }
 
 
@@ -453,7 +491,7 @@ def dias_restantes(fecha_str: str):
 
 
 def estimar_egreso(aprobadas_df: pd.DataFrame):
-    """Estima el fin del PLAN CARGADO (Tecnicatura: 20 materias) según el ritmo histórico."""
+    """Estima el fin del plan completo (Licenciatura) según el ritmo histórico de aprobación."""
     if "Fecha_aprobacion" not in aprobadas_df.columns:
         return None
     fechas = pd.to_datetime(aprobadas_df["Fecha_aprobacion"], errors="coerce").dropna()
@@ -1195,7 +1233,7 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
         egreso = estimar_egreso(aprobadas_df)
         if egreso:
             st.markdown(
-                f"<p style='font-size:11px; color:#aaa;'>🎓 Fin estimado (Tecnicatura): "
+                f"<p style='font-size:11px; color:#aaa;'>🎓 Fin estimado (Licenciatura): "
                 f"<strong style='color:#2ecc71'>{egreso}</strong></p>",
                 unsafe_allow_html=True,
             )
@@ -1769,7 +1807,7 @@ def vista_estadisticas(df, usuario, mis_datos, aprobadas_df, cursando_df, final_
 
     egreso = estimar_egreso(aprobadas_df)
     if egreso:
-        st.info(f"🎓 A tu ritmo actual, terminarías el plan cargado (Tecnicatura, {TOTAL_MATERIAS} materias) aproximadamente en **{egreso}**.")
+        st.info(f"🎓 A tu ritmo actual, terminarías la Licenciatura completa ({TOTAL_MATERIAS} materias) aproximadamente en **{egreso}**.")
     else:
         st.info("💡 Registrá fechas de aprobación en INICIO para estimar cuándo terminás la carrera.")
 
