@@ -3,17 +3,40 @@ import pandas as pd
 import plotly.graph_objects as go
 from streamlit_gsheets import GSheetsConnection
 import os
-import unicodedata
+import base64
+from pathlib import Path
+from graph_view import graph_html
+from html import escape
+from career_logic import (materia_id, mascara_materia, estados_por_materia, estado_materia,
+                          requisitos_pendientes, vista_academica, fecha_existente)
+from storage import guardar_usuario, normalizar_tabla, SaveError
 from datetime import date, datetime, timedelta
+
+ANCHO_COMPLETO = {"width": "stretch"} if hasattr(st, "iframe") else {"use_container_width": True}
+
+
+def mostrar_html(content: str, height: int, scrolling: bool = False):
+    """Use the supported embed API, retaining older Streamlit compatibility."""
+    if hasattr(st, "iframe"):
+        st.iframe(content, height=height, alt="Panel arcade interactivo")
+    else:
+        st.components.v1.html(content, height=height, scrolling=scrolling)
 
 # ─────────────────────────────────────────────
 # 1. CONFIGURACIÓN DE PÁGINA
 # ─────────────────────────────────────────────
 st.set_page_config(page_title="Círculo Rojo - SQUAD", page_icon="🔫", layout="wide")
 
+_font_path = Path(__file__).parent / "assets" / "fonts" / "PressStart2P-Regular.ttf"
+if _font_path.exists():
+    _font_b64 = base64.b64encode(_font_path.read_bytes()).decode("ascii")
+    st.markdown("<style>@font-face{font-family:'Press Start 2P';font-style:normal;font-weight:400;"
+                "font-display:swap;src:url(data:font/ttf;base64," + _font_b64 + ") format('truetype');}</style>",
+                unsafe_allow_html=True)
+
 st.markdown("""
     <style>
-    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+    /* Font embedded from assets/fonts below; no Google Fonts request. */
 
     .stApp { background-color: #0b0d11; color: #e0e0e0; }
 
@@ -33,7 +56,7 @@ st.markdown("""
             radial-gradient(ellipse at center, rgba(0,0,0,0) 55%, rgba(0,0,0,0.35) 100%);
         pointer-events: none;
         z-index: 9990;
-        opacity: 0.55;
+        opacity: 0.24;
         mix-blend-mode: multiply;
     }
 
@@ -44,20 +67,20 @@ st.markdown("""
     }
     .hp-bar-text {
         font-family: 'Press Start 2P', cursive;
-        font-size: 10px;
+        font-size:13px;
         color: #ff4b4b;
         margin-top: 5px;
     }
     .hp-bar-text-blue {
         font-family: 'Press Start 2P', cursive;
-        font-size: 10px;
+        font-size:13px;
         color: #3498db;
         margin-top: 5px;
     }
     .cuatri-header {
         font-family: 'Press Start 2P', cursive;
         color: #3498db;
-        font-size: 16px;
+        font-size:16px;
         margin-top: 30px;
         padding: 10px;
         border-bottom: 2px solid #3498db;
@@ -99,28 +122,29 @@ st.markdown("""
         border: 1px solid #f1c40f;
         box-shadow: 0 0 10px #f1c40f44;
     }
-    .logro-off { filter: grayscale(1); opacity: 0.35; }
+    .logro-off { filter: grayscale(1); opacity: 0.78; }
     [data-testid="stMetricValue"] {
         font-family: 'Press Start 2P', cursive;
-        font-size: 18px !important;
+        font-size:18px !important;
     }
 
-    /* ── RESPONSIVE MOBILE ── */
+    /* Arcade headings, readable body text and touch controls. */
+    .stApp p, .stApp li { line-height: 1.6; }
+    .stButton > button { min-height: 44px; font-size:14px; }
+    .stButton > button:focus-visible { outline: 3px solid #f1c40f; outline-offset: 3px; }
+    [data-testid="stCaptionContainer"] { color: #b9c1ce; }
     @media (max-width: 640px) {
-        /* Columnas principales en mobile: apiladas */
-        [data-testid="column"] { min-width: 100% !important; }
-
-        /* Navegación: texto más chico */
-        .stButton > button { font-size: 11px !important; padding: 6px 4px !important; }
-
-        /* Pills de navegación compactas */
-        [data-testid="stPills"] button { font-size: 11px !important; padding: 4px 8px !important; }
-
-        /* Header más chico */
-        .retro-font { font-size: 14px !important; }
-
-        /* Barras de progreso: texto más chico */
-        .hp-bar-text, .hp-bar-text-blue { font-size: 8px !important; }
+        .retro-font { font-size:16px !important; line-height: 1.7; }
+        .hp-bar-text, .hp-bar-text-blue { font-family: monospace; font-size:13px !important; }
+        [data-testid="stMetricValue"] { font-size:16px !important; }
+    }
+    .arcade-signal { border-left: 4px solid #f1c40f; padding: 10px 14px; background: #1e1b0e;
+        font-family: monospace; color: #f8e68b; animation: signal 1s ease-out 1; }
+    @keyframes signal { from { box-shadow: 0 0 24px #f1c40f77; } to { box-shadow: none; } }
+    @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { animation: none !important; transition: none !important; }
+        .stApp::before { display: none; }
+        [data-testid="stImage"] img { display: none; }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -297,7 +321,7 @@ def _inscribir_materia(conn, df, usuario, materia, modalidad="Regular"):
     🧹 Anti-duplicado: borra cualquier fila previa de ESA materia para ESE
     usuario (fantasmas, estados basura, duplicados) antes de crear la nueva.
     """
-    df_limpio = df[~((df["Nombre"] == usuario) & (df["Materia"] == materia))].copy()
+    df_limpio = df[~mascara_materia(df, usuario, materia)].copy()
     nueva = pd.DataFrame([{
         "Nombre": usuario, "Materia": materia, "Estado": "Cursando",
         "Cursada": modalidad,
@@ -308,21 +332,13 @@ def _inscribir_materia(conn, df, usuario, materia, modalidad="Regular"):
 
 
 def _norm_nombre(s: str) -> str:
-    """
-    Normaliza un nombre de materia para comparar correlativas sin que una
-    tilde, mayúscula o espacio de más rompa el match silenciosamente.
-    'Historia Económica  Contemporánea' == 'historia economica contemporanea'
-    """
-    s = str(s).strip().lower()
-    s = unicodedata.normalize("NFKD", s)
-    s = "".join(c for c in s if not unicodedata.combining(c))
-    return " ".join(s.split())
+    return materia_id(s)
 
 
 def get_avatar_path(usuario: str, n_aprobadas: int) -> str:
     char  = SQUAD_MAP.get(usuario, "Marco")
     nivel = 1 if n_aprobadas <= 10 else 2 if n_aprobadas <= 20 else 3 if n_aprobadas <= 30 else 4
-    return os.path.join("assets", f"{char}_{nivel}.gif")
+    return str(Path(__file__).parent / "assets" / f"{char}_{nivel}.gif")
 
 
 def barra_retro_html(pct: float, color: str, glow: str, label: str = "") -> str:
@@ -330,7 +346,7 @@ def barra_retro_html(pct: float, color: str, glow: str, label: str = "") -> str:
     pct = max(0.0, min(100.0, float(pct)))
     label_html = (
         f"<span style='position:absolute; right:8px; top:2px; font-family:monospace; "
-        f"font-size:11px; color:#fff; text-shadow:1px 1px 2px #000; z-index:2;'>{label}</span>"
+        f"font-size:12px; color:#fff; text-shadow:1px 1px 2px #000; z-index:2;'>{label}</span>"
         if label else ""
     )
     return (
@@ -390,48 +406,21 @@ def asignar_periodo_real(materia: str, cursada: str) -> str:
     return "1° Cuatrimestre" if teorico in ("1° Cuat.", "Anual") else "2° Cuatrimestre"
 
 
-def guardar_df(conn, df_local: pd.DataFrame, usuario: str | None = None):
-    """
-    Guarda en Google Sheets de forma SEGURA para multi-usuario:
-    1. 🛡️ Fusible: si el DF está vacío, no toca el Sheet.
-    2. 🔄 Anti-pisado: relee el Sheet FRESCO y solo reemplaza las filas del
-       usuario actual — así nunca se borran cambios recientes de otro soldado.
-    3. 💾 Backup: antes de escribir, respalda el estado actual en la
-       worksheet "backup" (crear esa pestaña una vez en el Google Sheet).
-    """
-    if df_local.empty or len(df_local.columns) < 2:
-        st.error("🚨 ATENCIÓN: Se intentó guardar una base de datos vacía. Operación cancelada para proteger el archivo.")
-        return
+def guardar_df(conn, df_local: pd.DataFrame, usuario: str | None = None) -> bool:
+    """Only return after read-back confirmation; stop the UI on any failure."""
     try:
-        df_final = df_local.copy()
-
-        if usuario:
-            try:
-                # Releer el Sheet SIN cache para tener los datos reales al momento de guardar
-                df_remoto = conn.read(worksheet=0, ttl=0)
-                df_remoto.columns = [str(c).strip().capitalize() for c in df_remoto.columns]
-                df_remoto = asegurar_columnas(df_remoto)
-                df_remoto = normalizar_estado(df_remoto)
-
-                # 💾 Backup del estado previo (falla en silencio si no existe la pestaña "backup")
-                try:
-                    conn.update(worksheet="backup", data=df_remoto)
-                except Exception:
-                    pass
-
-                # Conservar filas de los demás soldados, reemplazar solo las mías
-                otros = df_remoto[df_remoto["Nombre"] != usuario]
-                mias  = df_local[df_local["Nombre"] == usuario]
-                df_final = pd.concat([otros, mias], ignore_index=True)
-            except Exception:
-                # Si falla la relectura, guardamos la copia local (comportamiento anterior)
-                df_final = df_local.copy()
-
-        df_final.columns = [str(c).strip().capitalize() for c in df_final.columns]
-        conn.update(worksheet=0, data=df_final)
-        st.cache_data.clear()
-    except Exception as e:
-        st.error(f"⚠️ Error al sincronizar con Google Sheets: {e}")
+        result = guardar_usuario(conn, df_local, usuario, st.session_state.get("_base_df"))
+    except SaveError as exc:
+        st.error(f"🛑 {exc}")
+        st.stop()
+    st.cache_data.clear()
+    st.session_state.pop("_session_df", None)
+    st.session_state["_save_notice"] = (
+        "✅ Cambios guardados y verificados."
+        if result.backup_confirmed else
+        "✅ Cambios guardados y verificados. ⚠️ No se pudo crear el respaldo previo."
+    )
+    return True
 
 
 def asegurar_columnas(df: pd.DataFrame) -> pd.DataFrame:
@@ -444,6 +433,11 @@ def asegurar_columnas(df: pd.DataFrame) -> pd.DataFrame:
     for col, val in defaults.items():
         if col not in df.columns:
             df[col] = val
+        else:
+            # Empty Sheets columns may be inferred as float; editors also store
+            # dates and blanks, so keep the mixed legacy schema writable.
+            blank = "" if col == "Estado" else val
+            df[col] = df[col].astype(object).where(pd.notna(df[col]), blank)
     return df
 
 
@@ -468,7 +462,8 @@ def get_conflicto_horario(materia_nueva: str, mis_datos: pd.DataFrame) -> str | 
     Dado una materia que se quiere cursar, devuelve el nombre de la materia
     que ya está activa (Cursando) en el mismo día, o None si no hay conflicto.
     """
-    h_nueva = HORARIOS.get(materia_nueva)
+    horario_por_id = {materia_id(m): h for m, h in HORARIOS.items()}
+    h_nueva = horario_por_id.get(materia_id(materia_nueva))
     if not h_nueva:
         return None
     dia_nueva = h_nueva["dia"]
@@ -476,7 +471,7 @@ def get_conflicto_horario(materia_nueva: str, mis_datos: pd.DataFrame) -> str | 
     # Una materia en "Final" ya terminó la cursada (no vas a clase), no genera conflicto.
     activas = mis_datos[mis_datos["Estado"] == "Cursando"]["Materia"].tolist()
     for m_activa in activas:
-        h_activa = HORARIOS.get(m_activa)
+        h_activa = horario_por_id.get(materia_id(m_activa))
         if h_activa and h_activa["dia"] == dia_nueva:
             return m_activa
     return None
@@ -491,22 +486,18 @@ def dias_restantes(fecha_str: str):
 
 
 def estimar_egreso(aprobadas_df: pd.DataFrame):
-    """Estima el fin del plan completo (Licenciatura) según el ritmo histórico de aprobación."""
+    """Historical scenario using dated approvals only; no academic guarantees."""
     if "Fecha_aprobacion" not in aprobadas_df.columns:
         return None
     fechas = pd.to_datetime(aprobadas_df["Fecha_aprobacion"], errors="coerce").dropna()
-    if len(fechas) < 2:
+    if len(fechas) < 2 or len(aprobadas_df) >= TOTAL_MATERIAS:
         return None
-    fechas_sorted = fechas.sort_values()
-    delta_dias    = (fechas_sorted.iloc[-1] - fechas_sorted.iloc[0]).days
-    if delta_dias <= 0:
+    delta = (fechas.max() - fechas.min()).days
+    if delta <= 0:
         return None
-    ritmo         = len(aprobadas_df) / delta_dias
-    materias_rest = TOTAL_MATERIAS - len(aprobadas_df)
-    dias_rest     = materias_rest / ritmo
-    fecha_est     = date.today() + timedelta(days=dias_rest)
-    # Mes en castellano (strftime %B depende del locale del servidor y sale en inglés)
-    return f"{MESES_ES[fecha_est.month - 1]} {fecha_est.year}"
+    ritmo = (len(fechas) - 1) / delta
+    estimated = date.today() + timedelta(days=(TOTAL_MATERIAS - len(aprobadas_df)) / ritmo)
+    return f"{MESES_ES[estimated.month - 1]} {estimated.year}"
 
 
 def calcular_racha(mis_datos: pd.DataFrame) -> int:
@@ -557,7 +548,7 @@ def calcular_logros(mis_datos: pd.DataFrame, aprobadas_df: pd.DataFrame, puntos:
 
 def _base_audio_script() -> str:
     """Script base con Web Audio API para todos los sonidos del juego."""
-    return r"""
+    script = r"""
     <script>
     // ── Web Audio API context ──────────────────────────────────────────
     var _ctx = null;
@@ -855,57 +846,71 @@ def _base_audio_script() -> str:
     </script>
     """
 
+    # Route every synthesized effect through one limiter and volume bus.
+    for context in ("ctx", "ctx2", "ctx3"):
+        script = script.replace(f"connect({context}.destination)", "connect(getOutput())")
+    output = """
+    var _output = null;
+    function getOutput() {
+        if (!_output) {
+            var ctx = getCtx();
+            var limiter = ctx.createDynamicsCompressor();
+            limiter.threshold.value = -12;
+            limiter.ratio.value = 12;
+            var volume = ctx.createGain();
+            volume.gain.value = __VOLUME__;
+            limiter.connect(volume);
+            volume.connect(ctx.destination);
+            _output = limiter;
+        }
+        return _output;
+    }
+    """.replace("__VOLUME__", str(st.session_state.get("volumen", 45) / 100))
+    return script.replace("</script>", output + "</script>")
+
 
 def sound_html(sound: str) -> str:
-    """
-    Inyecta el script base + reproduce el sonido indicado.
-    sound: "gunshot" | "click" | "delete" | "headshot" | "finishhim" | "missioncomplete"
-    """
-    fn_map = {
-        "gunshot":        "playGunshot()",
-        "click":          "playClick()",
-        "delete":         "playDelete()",
-        "headshot":       "playHeadshot()",
-        "finishhim":      "playFinishHim()",
-        "missioncomplete":"playMissionComplete()",
+    functions = {"gunshot":"playGunshot", "click":"playClick", "delete":"playDelete",
+                 "headshot":"playHeadshot", "finishhim":"playFinishHim", "missioncomplete":"playMissionComplete"}
+    call = functions.get(sound, "playClick")
+    return _base_audio_script() + """
+    <style>body{margin:0;background:#0b0d11;color:#f1c40f;font:14px monospace}
+    button{background:#1a1c23;color:#f1c40f;border:1px solid #f1c40f;border-radius:5px;min-height:44px;padding:8px 12px;font:inherit;cursor:pointer}
+    button:focus-visible{outline:3px solid white}</style>
+    <button id="play">▶ Reproducir efecto</button>
+    <script>
+    let played = false;
+    function startEffect() {
+        const ctx = getCtx();
+        ctx.resume().then(() => {
+            if (played) return;
+            played = true;
+            __CALL__();
+            document.getElementById('play').hidden = true;
+            setTimeout(() => { if (_ctx) _ctx.close(); }, 5000);
+        }).catch(() => {});
     }
-    call = fn_map.get(sound, "playClick()")
-    return f"""
-    {_base_audio_script()}
-    <script>(function(){{ {call} }})();</script>
-    """
+    document.getElementById('play').onclick = startEffect;
+    startEffect();
+    </script>
+    """.replace("__CALL__", call)
 
 
 def confetti_html() -> str:
-    """Confetti + MISSION COMPLETE al aprobar una materia."""
-    return f"""
-    {_base_audio_script()}
-    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
-    <script>
-    (function() {{
-        playMissionComplete();
-        var duration = 3500;
-        var animationEnd = Date.now() + duration;
-        var defaults = {{ startVelocity: 30, spread: 360, ticks: 60, zIndex: 9999 }};
-        function randomInRange(min, max) {{ return Math.random() * (max - min) + min; }}
-        var interval = setInterval(function() {{
-            var timeLeft = animationEnd - Date.now();
-            if (timeLeft <= 0) return clearInterval(interval);
-            var particleCount = 50 * (timeLeft / duration);
-            confetti(Object.assign({{}}, defaults, {{
-                particleCount,
-                origin: {{ x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 }},
-                colors: ['#f1c40f','#ff4b4b','#3498db','#2ecc71','#fff']
-            }}));
-            confetti(Object.assign({{}}, defaults, {{
-                particleCount,
-                origin: {{ x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 }},
-                colors: ['#f1c40f','#ff4b4b','#3498db','#2ecc71','#fff']
-            }}));
-        }}, 250);
-    }})();
-    </script>
-    """
+    """Short local celebration; no CDN or remote graphics. Sound is independent."""
+    return r"""<!doctype html><html lang="es"><head><meta charset="utf-8"><style>
+    body{margin:0;background:#0b0d11;color:#f1c40f;font:700 20px monospace;overflow:hidden}
+    #banner{position:absolute;inset:40px 0 auto;text-align:center;letter-spacing:3px;text-shadow:0 0 12px #f1c40f88}
+    canvas{width:100%;height:150px;pointer-events:none}
+    @media(prefers-reduced-motion:reduce){canvas{display:none}#banner{text-shadow:none}}
+    </style></head><body><div id="banner" role="status">★ MISSION COMPLETE ★</div><canvas id="fx" aria-hidden="true"></canvas>
+    <script>(()=>{if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+    const canvas=document.getElementById('fx'),ctx=canvas.getContext('2d');canvas.width=900;canvas.height=150;
+    const colors=['#f1c40f','#ff7373','#61b9ff','#2ecc71'];
+    const particles=Array.from({length:56},()=>({x:450,y:90,vx:(Math.random()-.5)*16,vy:-Math.random()*8-1,c:colors[Math.floor(Math.random()*4)]}));
+    let frame=0;function draw(){ctx.clearRect(0,0,900,150);ctx.globalAlpha=1-frame/90;
+    for(const p of particles){p.x+=p.vx;p.y+=p.vy;p.vy+=.16;ctx.fillStyle=p.c;ctx.fillRect(p.x,p.y,5,5)}
+    if(++frame<90)requestAnimationFrame(draw)}requestAnimationFrame(draw)})();</script></body></html>"""
 
 
 def _get_examenes_proximos(mis_datos: pd.DataFrame) -> list:
@@ -928,229 +933,47 @@ def _get_examenes_proximos(mis_datos: pd.DataFrame) -> list:
 # ─────────────────────────────────────────────
 # 4. GRÁFICOS
 # ─────────────────────────────────────────────
-def arbol_correlativas_html(aprobadas: list, cursando: list, en_final: list = None) -> str:
-    """
-    Genera un grafo interactivo con vis.js:
-    - Zoom y pan con touch (funciona en mobile)
-    - Layout jerárquico de izquierda a derecha
-    - Nodos con color según estado
-    - Tooltip con nombre completo, créditos y correlativas
-    """
-    import json as _json
-
-    en_final = en_final or []
-    # Una correlativa se considera CUMPLIDA si está aprobada o regularizada (final pendiente)
-    regularizadas = set(aprobadas) | set(en_final)
-
-    nodes = []
-    edges = []
-
-    for idx, (m, info) in enumerate(PLAN_ESTUDIOS.items()):
-        if m in aprobadas:
-            color = {"background": "#2ecc71", "border": "#27ae60", "highlight": {"background": "#58d68d", "border": "#27ae60"}}
-            font_color = "#0b0d11"
-        elif m in en_final:
-            color = {"background": "#e67e22", "border": "#ca6f1e", "highlight": {"background": "#eb984e", "border": "#ca6f1e"}}
-            font_color = "#0b0d11"
-        elif m in cursando:
-            color = {"background": "#f1c40f", "border": "#d4ac0d", "highlight": {"background": "#f4d03f", "border": "#d4ac0d"}}
-            font_color = "#0b0d11"
-        elif all(c in regularizadas for c in info["correlativas"]):
-            color = {"background": "#3498db", "border": "#2980b9", "highlight": {"background": "#5dade2", "border": "#2980b9"}}
-            font_color = "#ffffff"
-        else:
-            color = {"background": "#2c2f36", "border": "#555", "highlight": {"background": "#3d4147", "border": "#777"}}
-            font_color = "#aaaaaa"
-
-        pts  = info["puntos"]
-        cors = ", ".join(info["correlativas"]) or "Ninguna"
-        # Etiqueta corta para el nodo
-        palabras = m.split()
-        label = " ".join(palabras[:3]) + ("\n" + " ".join(palabras[3:6]) if len(palabras) > 3 else "")
-
-        nodes.append({
-            "id":    idx,
-            "label": label,
-            "title": f"<b>{m}</b><br>Créditos: {pts}<br>Requiere: {cors}",
-            "color": color,
-            "font":  {"color": font_color, "size": 13, "face": "monospace"},
-            "shape": "box",
-            "margin": 8,
-            "shadow": True,
-        })
-
-    materia_idx = {m: i for i, m in enumerate(PLAN_ESTUDIOS.keys())}
-    for m, info in PLAN_ESTUDIOS.items():
-        for cor in info["correlativas"]:
-            edges.append({
-                "from":   materia_idx[cor],
-                "to":     materia_idx[m],
-                "arrows": "to",
-                "color":  {"color": "#555", "highlight": "#f1c40f"},
-                "width":  2,
-                "smooth": {"type": "cubicBezier", "forceDirection": "horizontal"},
-            })
-
-    nodes_json = _json.dumps(nodes)
-    edges_json = _json.dumps(edges)
-
-    return f"""
-<!DOCTYPE html>
-<html>
-<head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.css"/>
-<style>
-  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  body {{ background: #0b0d11; overflow: hidden; }}
-  #graph {{
-    width: 100%;
-    height: 600px;
-    background: #0b0d11;
-    border: 1px solid #333;
-    border-radius: 8px;
-  }}
-  .vis-tooltip {{
-    background: #1a1c23 !important;
-    border: 1px solid #444 !important;
-    color: #e0e0e0 !important;
-    font-family: monospace !important;
-    font-size: 13px !important;
-    padding: 8px 12px !important;
-    border-radius: 6px !important;
-    max-width: 250px !important;
-  }}
-  #hint {{
-    position: absolute;
-    bottom: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    color: #555;
-    font-size: 11px;
-    font-family: monospace;
-    pointer-events: none;
-    white-space: nowrap;
-  }}
-</style>
-</head>
-<body>
-<div style="position:relative;">
-  <div id="graph"></div>
-  <div id="hint">📱 Pellizco para zoom · Arrastrá para mover</div>
-</div>
-<script>
-  var nodes = new vis.DataSet({nodes_json});
-  var edges = new vis.DataSet({edges_json});
-
-  var options = {{
-    layout: {{
-      hierarchical: {{
-        enabled: true,
-        direction: "LR",
-        sortMethod: "directed",
-        levelSeparation: 220,
-        nodeSpacing: 90,
-        treeSpacing: 150,
-        blockShifting: true,
-        edgeMinimization: true,
-        parentCentralization: true,
-      }}
-    }},
-    physics: {{ enabled: false }},
-    interaction: {{
-      dragNodes: false,
-      dragView: true,
-      zoomView: true,
-      hover: true,
-      tooltipDelay: 100,
-      navigationButtons: false,
-      keyboard: false,
-    }},
-    nodes: {{
-      borderWidth: 2,
-      borderWidthSelected: 3,
-    }},
-    edges: {{
-      selectionWidth: 3,
-    }},
-  }};
-
-  var container = document.getElementById("graph");
-  var network   = new vis.Network(container, {{ nodes: nodes, edges: edges }}, options);
-
-  // Ajuste automático al cargar
-  network.once("stabilized", function() {{
-    network.fit({{ animation: {{ duration: 600, easingFunction: "easeInOutQuad" }} }});
-  }});
-  network.fit();
-</script>
-</body>
-</html>
-"""
+def arbol_correlativas_html(aprobadas: list, cursando: list, en_final: list = None, foco=None) -> str:
+    rows = [{"Materia": m, "Estado": state} for state, subjects in
+            [("Cursando", cursando), ("Final", en_final or []), ("Aprobada", aprobadas)] for m in subjects]
+    data = pd.DataFrame(rows, columns=["Materia", "Estado"])
+    return graph_html(PLAN_ESTUDIOS, estados_por_materia(data), foco)
 
 
 def grafico_radar(aprobadas_df: pd.DataFrame) -> go.Figure:
-    categorias = list(AREAS.keys())
-    valores = []
-    for area, mats in AREAS.items():
-        aprobadas_area = sum(1 for m in mats if m in aprobadas_df["Materia"].values)
-        valores.append(round(aprobadas_area / len(mats) * 100, 1) if mats else 0)
-
-    fig = go.Figure(go.Scatterpolar(
-        r=valores + [valores[0]],
-        theta=categorias + [categorias[0]],
-        fill="toself",
-        fillcolor="rgba(52, 152, 219, 0.25)",
-        line=dict(color="#3498db", width=2),
-        marker=dict(color="#f1c40f", size=8),
-    ))
-    fig.update_layout(
-        polar=dict(
-            bgcolor="#1a1c23",
-            radialaxis=dict(visible=True, range=[0, 100],
-                            tickfont=dict(color="#aaa", size=9),
-                            gridcolor="#333", linecolor="#333"),
-            angularaxis=dict(tickfont=dict(color="#e0e0e0", size=11),
-                             gridcolor="#333", linecolor="#333"),
-        ),
-        paper_bgcolor="#0b0d11",
-        font=dict(color="#e0e0e0"),
-        height=380,
-        margin=dict(l=60, r=60, t=20, b=20),
-        showlegend=False,
-    )
+    """Legacy function name retained; horizontal bars compare progress clearly."""
+    approved = {materia_id(m) for m in aprobadas_df["Materia"]}
+    areas, percentages, labels = [], [], []
+    for area, subjects in AREAS.items():
+        count = sum(materia_id(m) in approved for m in subjects)
+        areas.append(area)
+        percentages.append(count / len(subjects) * 100)
+        labels.append(f"{count}/{len(subjects)} · {count / len(subjects):.0%}")
+    fig = go.Figure(go.Bar(y=areas, x=percentages, orientation="h", text=labels,
+        textposition="auto", marker_color="#3498db", insidetextfont=dict(color="#ffffff"),
+        hovertemplate="%{y}: %{text}<extra></extra>"))
+    fig.update_layout(paper_bgcolor="#0b0d11", plot_bgcolor="#0b0d11", font=dict(color="#e0e0e0",size=14),
+        xaxis=dict(range=[0,110], ticksuffix="%", gridcolor="#333", title="Materias aprobadas del área"),
+        yaxis=dict(autorange="reversed",automargin=True), height=340,
+        margin=dict(l=10,r=20,t=20,b=40), dragmode=False)
     return fig
 
 
 def grafico_progreso_tiempo(aprobadas_df: pd.DataFrame):
     if "Fecha_aprobacion" not in aprobadas_df.columns:
         return None
-    df_f = aprobadas_df.copy()
-    df_f["Fecha_aprobacion"] = pd.to_datetime(df_f["Fecha_aprobacion"], errors="coerce")
-    df_f = df_f.dropna(subset=["Fecha_aprobacion"]).sort_values("Fecha_aprobacion")
-    if df_f.empty:
+    dates = pd.to_datetime(aprobadas_df["Fecha_aprobacion"], errors="coerce").dropna()
+    if dates.empty:
         return None
-    df_f["Acumuladas"] = range(1, len(df_f) + 1)
-
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(
-        x=df_f["Fecha_aprobacion"], y=df_f["Acumuladas"],
-        mode="lines+markers",
-        line=dict(color="#f1c40f", width=3),
-        marker=dict(color="#ff4b4b", size=8),
-        hovertemplate="%{x|%d/%m/%Y}<br>Materias aprobadas: %{y}<extra></extra>",
+    counts = dates.value_counts().sort_index().cumsum()
+    fig = go.Figure(go.Scatter(
+        x=counts.index, y=counts.values, mode="lines+markers",
+        line=dict(color="#f1c40f", width=3, shape="hv"), marker=dict(color="#ff7373", size=8),
+        hovertemplate="%{x|%d/%m/%Y}<br>Aprobadas con fecha: %{y}<extra></extra>",
     ))
-    fig.add_hline(y=TOTAL_MATERIAS, line_dash="dot", line_color="#2ecc71",
-                  annotation_text="Meta total", annotation_font_color="#2ecc71")
-    fig.update_layout(
-        paper_bgcolor="#0b0d11", plot_bgcolor="#0b0d11",
-        font=dict(color="#e0e0e0"),
-        xaxis=dict(title="Fecha", gridcolor="#222", linecolor="#444"),
-        yaxis=dict(title="Materias aprobadas", gridcolor="#222", linecolor="#444"),
-        height=320,
-        margin=dict(l=20, r=20, t=10, b=20),
-    )
+    fig.update_layout(paper_bgcolor="#0b0d11", plot_bgcolor="#0b0d11", font=dict(color="#e0e0e0"),
+        xaxis=dict(title="Fecha", gridcolor="#333"), yaxis=dict(title="Aprobadas con fecha", rangemode="tozero", dtick=1),
+        height=320, margin=dict(l=20,r=20,t=20,b=20), dragmode=False)
     return fig
 
 
@@ -1163,10 +986,10 @@ def _boton_borrar_confirmado(col, conn, df, usuario, materia, key_btn: str, conf
     Botón 🗑️ con confirmación en dos toques (anti-dedazo mobile).
     Devuelve True si se ejecutó el borrado.
     """
-    if col.button("🗑️", key=key_btn, use_container_width=True, help="Eliminar (requiere 2 toques)"):
+    if col.button("🗑️", key=key_btn, **ANCHO_COMPLETO, help="Eliminar (requiere 2 toques)"):
         if st.session_state.get(conf_key, False):
             st.session_state[conf_key] = False
-            idx_drop = df[(df["Nombre"] == usuario) & (df["Materia"] == materia)].index
+            idx_drop = df[mascara_materia(df, usuario, materia)].index
             guardar_df(conn, df.drop(idx_drop).reset_index(drop=True), usuario)
             st.session_state["play_sound"] = "delete"
             st.rerun()
@@ -1184,7 +1007,7 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
 
     with col_av:
         img_path = get_avatar_path(usuario, len(aprobadas_df))
-        if os.path.exists(img_path):
+        if os.path.exists(img_path) and st.session_state.get("efectos", True):
             st.image(img_path, width=120)
         else:
             st.markdown("🎮")
@@ -1193,15 +1016,15 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
         st.markdown(
             f"""<div style='display:flex; flex-wrap:wrap; gap:8px; margin:8px 0;'>
                 <div style='background:#1a1c23; border-radius:6px; padding:8px 12px; flex:1; min-width:70px; text-align:center;'>
-                    <div style='color:#aaa; font-size:9px; font-family:monospace;'>PUNTOS</div>
+                    <div style='color:#aaa; font-size:12px; font-family:monospace;'>PUNTOS</div>
                     <div style='color:#f1c40f; font-size:16px; font-weight:bold;'>{puntos_logrados}</div>
                 </div>
                 <div style='background:#1a1c23; border-radius:6px; padding:8px 12px; flex:1; min-width:70px; text-align:center;'>
-                    <div style='color:#aaa; font-size:9px; font-family:monospace;'>PROM.</div>
+                    <div style='color:#aaa; font-size:12px; font-family:monospace;'>PROM.</div>
                     <div style='color:#3498db; font-size:16px; font-weight:bold;'>{promedio_simple:.2f}</div>
                 </div>
                 <div style='background:#1a1c23; border-radius:6px; padding:8px 12px; flex:1; min-width:70px; text-align:center;'>
-                    <div style='color:#aaa; font-size:9px; font-family:monospace;'>POND.</div>
+                    <div style='color:#aaa; font-size:12px; font-family:monospace;'>POND.</div>
                     <div style='color:#2ecc71; font-size:16px; font-weight:bold;'>{promedio_pond:.2f}</div>
                 </div>
             </div>""",
@@ -1233,15 +1056,15 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
         egreso = estimar_egreso(aprobadas_df)
         if egreso:
             st.markdown(
-                f"<p style='font-size:11px; color:#aaa;'>🎓 Fin estimado (Licenciatura): "
+                f"<p style='font-size:12px; color:#aaa;'>🎓 Fin estimado (Licenciatura): "
                 f"<strong style='color:#2ecc71'>{egreso}</strong></p>",
                 unsafe_allow_html=True,
             )
 
-        st.link_button("📂 DRIVE SQUAD",  "https://drive.google.com/drive/folders/1C7LQskupjeW2sO2wnD_upyYnuxip4oqs", use_container_width=True)
-        st.link_button("🏛️ SIU GUARANÍ", "https://estudiantes.unla.edu.ar/autogestion3w/acceso",                     use_container_width=True)
-        st.link_button("💻 CAMPUS UNLA", "https://campus.unla.edu.ar/aulas/login/index.php",                          use_container_width=True)
-        st.link_button("🧠 ESTUDIO IA",  "https://estudio-ia.streamlit.app/",                                         use_container_width=True)
+        st.link_button("📂 DRIVE SQUAD",  "https://drive.google.com/drive/folders/1C7LQskupjeW2sO2wnD_upyYnuxip4oqs", **ANCHO_COMPLETO)
+        st.link_button("🏛️ SIU GUARANÍ", "https://estudiantes.unla.edu.ar/autogestion3w/acceso",                     **ANCHO_COMPLETO)
+        st.link_button("💻 CAMPUS UNLA", "https://campus.unla.edu.ar/aulas/login/index.php",                          **ANCHO_COMPLETO)
+        st.link_button("🧠 ESTUDIO IA",  "https://estudio-ia.streamlit.app/",                                         **ANCHO_COMPLETO)
 
     with col_cur:
         st.markdown("#### 🏆 PROGRESO POR CRÉDITOS:")
@@ -1276,7 +1099,7 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
                 badge   = "🚨 HOY" if dias == 0 else (f"⚠️ {dias}d" if urgente else f"📅 {dias}d")
                 clase   = "exam-card exam-urgent" if urgente else "exam-card"
                 st.markdown(
-                    f"<div class='{clase}'><strong>{ex['materia']}</strong> <small style='color:#888'>{ex['tipo']}</small> {badge}<br>"
+                    f"<div class='{clase}'><strong>{ex['materia']}</strong> <small style='color:#b4becd'>{ex['tipo']}</small> {badge}<br>"
                     f"<span style='color:#aaa; font-size:12px;'>{ex['fecha_str']}</span></div>",
                     unsafe_allow_html=True,
                 )
@@ -1300,11 +1123,11 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
             )
 
         if cursando_df.empty and final_df.empty:
-            st.info("No estás cursando ninguna materia. ¡Inscribite en PRÓX.!")
+            st.info("No tenés materias activas. Elegí tu próxima misión en Planificar.")
         else:
             # ── Materias en Final (inscripto, esperando aprobar) ──────────
             if not final_df.empty:
-                st.markdown("##### 📝 Inscripto a final:")
+                st.markdown("##### 📝 Regularizadas · final pendiente:")
                 for i, row in final_df.iterrows():
                     materia  = row["Materia"]
                     tipo_c   = row["Cursada"]
@@ -1321,7 +1144,7 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
 
                     aplazos = pd.to_numeric(row.get("Aplazos", ""), errors="coerce")
                     aplazos_badge = (
-                        f" <span style='color:#ff4b4b; font-size:10px;'>💀 x{int(aplazos)}</span>"
+                        f" <span style='color:#ff4b4b; font-size:12px;'>💀 x{int(aplazos)}</span>"
                         if pd.notna(aplazos) and aplazos > 0 else ""
                     )
 
@@ -1329,21 +1152,21 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
                         f"<div style='background:#0d1a2e; border-left:4px solid #3498db; "
                         f"border-radius:6px; padding:10px 14px; margin-bottom:4px;'>"
                         f"📝 <strong>{materia}</strong> "
-                        f"<span style='color:#aaa; font-size:11px;'>[{tipo_c}] {badge}</span>{aplazos_badge}"
-                        + (f"<br><span style='color:#f1c40f; font-size:10px;'>{get_horario_badge(materia)}</span>" if get_horario_badge(materia) else "")
+                        f"<span style='color:#aaa; font-size:12px;'>[{tipo_c}] {badge}</span>{aplazos_badge}"
+                        + (f"<br><span style='color:#f1c40f; font-size:12px;'>{get_horario_badge(materia)}</span>" if get_horario_badge(materia) else "")
                         + f"</div>",
                         unsafe_allow_html=True,
                     )
 
                     bc1, bc2, bc3, bc4, _ = st.columns([2, 1, 1, 1, 2])
-                    if bc1.button("✅ Aprobé el final", key=f"apfinal_{i}", use_container_width=True):
+                    if bc1.button("✅ Aprobé el final", key=f"apfinal_{i}", **ANCHO_COMPLETO):
                         st.session_state[key_ap]  = not st.session_state.get(key_ap, False)
                         st.session_state[key_fex] = False
-                    if bc2.button("📅", key=f"fexfinal_{i}", use_container_width=True, help="Editar fecha de mesa de final"):
+                    if bc2.button("📅", key=f"fexfinal_{i}", **ANCHO_COMPLETO, help="Editar fecha de mesa de final"):
                         st.session_state[key_fex] = not st.session_state.get(key_fex, False)
                         st.session_state[key_ap]  = False
-                    if bc3.button("❌", key=f"aplazo_{i}", use_container_width=True, help="Desaprobé el final (suma un aplazo)"):
-                        mask = (df["Nombre"] == usuario) & (df["Materia"] == materia)
+                    if bc3.button("❌", key=f"aplazo_{i}", **ANCHO_COMPLETO, help="Desaprobé el final (suma un aplazo)"):
+                        mask = mascara_materia(df, usuario, materia)
                         apl_act = pd.to_numeric(row.get("Aplazos", ""), errors="coerce")
                         nuevo_apl = int(apl_act) + 1 if pd.notna(apl_act) else 1
                         df.loc[mask, "Aplazos"] = nuevo_apl
@@ -1365,9 +1188,9 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
                             except Exception:
                                 fex_val = date.today()
                             nueva_fex = st.date_input("Fecha de la mesa de final:", value=fex_val)
-                            if st.form_submit_button("💾 GUARDAR FECHA", use_container_width=True):
+                            if st.form_submit_button("💾 GUARDAR FECHA", **ANCHO_COMPLETO):
                                 df.loc[
-                                    (df["Nombre"] == usuario) & (df["Materia"] == materia),
+                                    mascara_materia(df, usuario, materia),
                                     "Fecha_examen"
                                 ] = str(nueva_fex)
                                 guardar_df(conn, df, usuario)
@@ -1379,9 +1202,9 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
                         with st.form(key=f"formfinal_{i}"):
                             nota_input = st.number_input("Nota final (4-10):", min_value=4, max_value=10, value=7)
                             fecha_ap   = st.date_input("Fecha de aprobación:", value=date.today())
-                            if st.form_submit_button("🎖️ REGISTRAR VICTORIA", use_container_width=True):
+                            if st.form_submit_button("🎖️ REGISTRAR VICTORIA", **ANCHO_COMPLETO):
                                 df.loc[
-                                    (df["Nombre"] == usuario) & (df["Materia"] == materia),
+                                    mascara_materia(df, usuario, materia),
                                     ["Estado", "Nota", "Fecha_aprobacion", "Fecha_examen"]
                                 ] = ["Aprobada", nota_input, str(fecha_ap), ""]
                                 guardar_df(conn, df, usuario)
@@ -1412,11 +1235,11 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
 
                     sin_final = materia in MATERIAS_SIN_FINAL
                     badge_tipo = "🔄" if tipo_c == "Contracursada" else "📘"
-                    sin_final_badge = "<span style='color:#2ecc71; font-size:10px;'> · Sin final</span>" if sin_final else ""
+                    sin_final_badge = "<span style='color:#2ecc71; font-size:12px;'> · Sin final</span>" if sin_final else ""
                     horario_badge = get_horario_badge(materia)
                     hoy_badge = " 🔥" if dia_es_hoy(materia) else ""
                     horario_html = (
-                        f"<br><span style='color:#f1c40f; font-size:10px;'>{horario_badge}{hoy_badge}</span>"
+                        f"<br><span style='color:#f1c40f; font-size:12px;'>{horario_badge}{hoy_badge}</span>"
                         if horario_badge else ""
                     )
 
@@ -1424,16 +1247,16 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
                         f"<div style='background:#1a1c23; border-left:4px solid #f1c40f; "
                         f"border-radius:6px; padding:10px 14px; margin-bottom:4px;'>"
                         f"{badge_tipo} <strong>{materia}</strong> "
-                        f"<span style='color:#aaa; font-size:11px;'>[{tipo_c}]{parciales_str}</span>"
+                        f"<span style='color:#aaa; font-size:12px;'>[{tipo_c}]{parciales_str}</span>"
                         f"{sin_final_badge}{horario_html}</div>",
                         unsafe_allow_html=True,
                     )
 
                     bc1, bc2, bc3, _ = st.columns([2, 1, 1, 2])
-                    if bc1.button("📋 Terminé de cursar", key=f"mision_{i}", use_container_width=True):
+                    if bc1.button("📋 Terminé de cursar", key=f"mision_{i}", **ANCHO_COMPLETO):
                         st.session_state[key_flag] = not st.session_state.get(key_flag, False)
                         st.session_state[key_edit] = False
-                    if bc2.button("✏️", key=f"edit_{i}", use_container_width=True, help="Editar parciales / fecha"):
+                    if bc2.button("✏️", key=f"edit_{i}", **ANCHO_COMPLETO, help="Editar parciales / fecha"):
                         st.session_state[key_edit] = not st.session_state.get(key_edit, False)
                         st.session_state[key_flag] = False
                     _boton_borrar_confirmado(bc3, conn, df, usuario, materia,
@@ -1449,9 +1272,9 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
                                 st.info("✅ Esta materia no tiene final. Ingresá la nota de cursada.")
                                 nota_input = st.number_input("Nota (4-10):", min_value=4, max_value=10, value=7)
                                 fecha_ap   = st.date_input("Fecha de aprobación:", value=date.today())
-                                if st.form_submit_button("🎖️ APROBAR", use_container_width=True):
+                                if st.form_submit_button("🎖️ APROBAR", **ANCHO_COMPLETO):
                                     df.loc[
-                                        (df["Nombre"] == usuario) & (df["Materia"] == materia),
+                                        mascara_materia(df, usuario, materia),
                                         ["Estado", "Nota", "Fecha_aprobacion", "Fecha_examen"]
                                     ] = ["Aprobada", nota_input, str(fecha_ap), ""]
                                     guardar_df(conn, df, usuario)
@@ -1468,18 +1291,18 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
                                 unsafe_allow_html=True,
                             )
                             col_si, col_no = st.columns(2)
-                            if col_si.button("✅ Sí, tiene final", key=f"si_{i}", use_container_width=True):
+                            if col_si.button("✅ Sí, tiene final", key=f"si_{i}", **ANCHO_COMPLETO):
                                 df.loc[
-                                    (df["Nombre"] == usuario) & (df["Materia"] == materia),
+                                    mascara_materia(df, usuario, materia),
                                     "Estado"
                                 ] = "Final"
                                 guardar_df(conn, df, usuario)
                                 st.session_state[key_flag]     = False
                                 st.session_state["play_sound"] = "finishhim"
                                 st.rerun()
-                            if col_no.button("❌ No, apruebo por cursada", key=f"no_{i}", use_container_width=True):
+                            if col_no.button("❌ No, apruebo por cursada", key=f"no_{i}", **ANCHO_COMPLETO):
                                 st.session_state[tiene_final_key] = "no"
-                                st.session_state[key_flag]        = False
+                                st.session_state[key_flag]        = True
                                 st.rerun()
 
                             if st.session_state.get(tiene_final_key) == "no":
@@ -1487,9 +1310,9 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
                                     st.info("✅ Aprobada por cursada. Ingresá la nota.")
                                     nota_input = st.number_input("Nota (4-10):", min_value=4, max_value=10, value=7)
                                     fecha_ap   = st.date_input("Fecha:", value=date.today())
-                                    if st.form_submit_button("🎖️ APROBAR", use_container_width=True):
+                                    if st.form_submit_button("🎖️ APROBAR", **ANCHO_COMPLETO):
                                         df.loc[
-                                            (df["Nombre"] == usuario) & (df["Materia"] == materia),
+                                            mascara_materia(df, usuario, materia),
                                             ["Estado", "Nota", "Fecha_aprobacion", "Fecha_examen"]
                                         ] = ["Aprobada", nota_input, str(fecha_ap), ""]
                                         guardar_df(conn, df, usuario)
@@ -1512,20 +1335,20 @@ def vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_
                             try:
                                 fecha_ex_val = datetime.strptime(fecha_ex_act, "%Y-%m-%d").date()
                             except Exception:
-                                fecha_ex_val = date.today()
-                            fecha_ex   = st.date_input("Fecha de examen final:", value=fecha_ex_val)
+                                fecha_ex_val = None
+                            fecha_ex   = st.date_input("Fecha del próximo parcial:", value=fecha_ex_val)
                             nuevo_tipo = st.selectbox(
                                 "Tipo de cursada:",
                                 ["Regular", "Contracursada"],
                                 index=["Regular", "Contracursada"].index(tipo_c)
                                       if tipo_c in ["Regular", "Contracursada"] else 0,
                             )
-                            if st.form_submit_button("💾 GUARDAR", use_container_width=True):
-                                mask = (df["Nombre"] == usuario) & (df["Materia"] == materia)
+                            if st.form_submit_button("💾 GUARDAR", **ANCHO_COMPLETO):
+                                mask = mascara_materia(df, usuario, materia)
                                 # 0 = sin nota → guardar vacío, no un cero literal
                                 df.loc[mask, "Nota_parcial1"] = p1 if p1 > 0 else ""
                                 df.loc[mask, "Nota_parcial2"] = p2 if p2 > 0 else ""
-                                df.loc[mask, "Fecha_examen"]  = str(fecha_ex)
+                                df.loc[mask, "Fecha_examen"]  = str(fecha_ex) if fecha_ex else ""
                                 df.loc[mask, "Cursada"]       = nuevo_tipo
                                 guardar_df(conn, df, usuario)
                                 st.session_state[key_edit] = False
@@ -1554,7 +1377,7 @@ def vista_grupo(df):
                 continue
             for mat in bloque["Materia"].unique():
                 soldados_data = bloque[bloque["Materia"] == mat]
-                lista_nombres = [f"{r['Nombre']} ({r['Cursada']})" for _, r in soldados_data.iterrows()]
+                lista_nombres = [escape(f"{r['Nombre']} ({r['Cursada']})") for _, r in soldados_data.iterrows()]
                 puntos_mat    = PLAN_ESTUDIOS.get(mat, {}).get("puntos", 0)
                 st.markdown(
                     f"<div class='materia-card'><strong>{mat}</strong> ({puntos_mat} pts)<br>"
@@ -1568,93 +1391,73 @@ def vista_grupo(df):
     st.markdown("#### 🏅 MATERIAS APROBADAS POR EL SQUAD")
     aprobadas_grupo = df[df["Estado"] == "Aprobada"][["Nombre", "Materia", "Nota"]].copy()
     if not aprobadas_grupo.empty:
-        st.dataframe(aprobadas_grupo.sort_values(["Materia", "Nombre"]), use_container_width=True, hide_index=True)
+        st.dataframe(aprobadas_grupo.sort_values(["Materia", "Nombre"]), **ANCHO_COMPLETO, hide_index=True)
     else:
         st.info("Nadie ha aprobado materias aún.")
 
 
 def vista_proximas(conn, df, usuario, mis_datos, aprobadas_df):
-    st.header("📝 PRÓXIMOS OBJETIVOS")
-    # Solo cuentan como "ya registradas" las materias en un estado real.
-    # Una fila con estado basura no debe ocultar la materia de esta lista.
-    ya_registradas = mis_datos[mis_datos["Estado"].isin(ESTADOS_VALIDOS)]["Materia"].tolist()
-
-    # 🔑 CORRELATIVAS: una materia habilita a cursar las siguientes cuando está
-    # REGULARIZADA (cursada aprobada → estado "Final") o totalmente "Aprobada".
-    # No hace falta tener el final aprobado para cursar la correlativa.
-    regularizadas = mis_datos[mis_datos["Estado"].isin(["Aprobada", "Final"])]["Materia"].tolist()
-    en_final_list = mis_datos[mis_datos["Estado"] == "Final"]["Materia"].tolist()
-
-    # 🛡️ Matcheo robusto: comparamos por nombre NORMALIZADO (sin tildes /
-    # mayúsculas / espacios de más), así una diferencia de tipeo en el Sheet
-    # no bloquea una materia por error.
-    regularizadas_norm = {_norm_nombre(m) for m in regularizadas}
-    en_final_norm      = {_norm_nombre(m) for m in en_final_list}
-
-    def _correlativas_ok(info) -> bool:
-        return all(_norm_nombre(c) in regularizadas_norm for c in info["correlativas"])
-
-    disponibles = [m for m, info in PLAN_ESTUDIOS.items()
-                   if m not in ya_registradas and _correlativas_ok(info)]
-    bloqueadas  = [m for m, info in PLAN_ESTUDIOS.items()
-                   if m not in ya_registradas and not _correlativas_ok(info)]
-
-    if disponibles:
-        st.markdown("##### 🔓 Disponibles para cursar:")
-        for d in disponibles:
-            h = HORARIOS.get(d)
-            horario_str = ""
-            if h:
-                inst = f" · {h['instructor']}" if h["instructor"] else ""
-                horario_str = f" · 📅 {h['dia']} NOCHE · {h['docente']}{inst}"
-
-            conflicto = get_conflicto_horario(d, mis_datos)
-
-            c1, c2, c3 = st.columns([3, 1, 1])
-            c1.success(f"**{d}** ({PLAN_ESTUDIOS[d]['puntos']} pts){horario_str}")
-
-            # Aviso: se habilita por REGULARIDAD (correlativa con final aún pendiente)
-            corr_pendiente_final = [c for c in PLAN_ESTUDIOS[d]["correlativas"] if _norm_nombre(c) in en_final_norm]
-            if corr_pendiente_final:
-                c1.caption(f"🟠 Habilitada por regularidad — todavía debés el final de: {', '.join(corr_pendiente_final)}")
-
-            # El widget maneja su propio estado vía key — sin index ni asignación manual
-            tipo_sel = c2.selectbox("Modalidad:", ["Regular", "Contracursada"], key=f"sel_{d}")
-
-            if conflicto:
-                c3.button("⚔️ CURSAR", key=f"in_{d}", disabled=True, use_container_width=True)
-                st.markdown(
-                    f"<div style='background:#1a0d0d; border-left:4px solid #ff4b4b; "
-                    f"border-radius:6px; padding:8px 12px; margin:-6px 0 8px 0; font-size:12px;'>"
-                    f"⚠️ <strong>Conflicto de horario</strong> — "
-                    f"Ya estás cursando <strong>{conflicto}</strong> el mismo día "
-                    f"({HORARIOS[conflicto]['dia']})</div>",
-                    unsafe_allow_html=True,
-                )
-            else:
-                if c3.button("⚔️ CURSAR", key=f"in_{d}", use_container_width=True):
-                    _inscribir_materia(conn, df, usuario, d, st.session_state.get(f"sel_{d}", "Regular"))
-                    st.session_state["play_sound"] = "gunshot"
-                    st.rerun()
-
-    if bloqueadas:
-        st.markdown("---")
-        st.markdown("##### 🔒 Bloqueadas (faltan correlativas):")
-        st.caption("Si tu facultad te habilita a anotarte igual (condicional / excepción), usá ⚔️ Igual.")
-        for b in bloqueadas:
-            faltan = [c for c in PLAN_ESTUDIOS[b]["correlativas"]
-                      if _norm_nombre(c) not in regularizadas_norm]
-            c1b, c2b = st.columns([4, 1])
-            c1b.markdown(
-                f"<div class='warning-card'><strong>{b}</strong> "
-                f"({PLAN_ESTUDIOS[b]['puntos']} pts) — falta: {', '.join(faltan)}</div>",
-                unsafe_allow_html=True,
-            )
-            if c2b.button("⚔️ Igual", key=f"force_{b}", use_container_width=True,
-                          help="Anotarte pese a la correlativa pendiente"):
-                _inscribir_materia(conn, df, usuario, b, "Regular")
+    st.header("🧭 PLANIFICAR · PRÓXIMA MISIÓN")
+    st.caption("Elegí una materia, revisá sus requisitos y explorá lo que sigue. Registrar acá no realiza una inscripción en SIU.")
+    states = estados_por_materia(mis_datos)
+    c_search, c_filter = st.columns([2, 1])
+    query = c_search.text_input("🔎 Buscar materia", placeholder="Nombre completo o una parte", key=f"buscar_{usuario}")
+    filter_name = c_filter.selectbox("Estado", ["Disponibles", "Bloqueadas", "Cursando", "Final pendiente", "Aprobadas", "Todas"], key=f"filtro_{usuario}")
+    filters = {"Disponibles": "Disponible", "Bloqueadas": "Bloqueada", "Cursando": "Cursando", "Final pendiente": "Final", "Aprobadas": "Aprobada"}
+    visible = [m for m in PLAN_ESTUDIOS if materia_id(query) in materia_id(m) and
+               (filter_name == "Todas" or estado_materia(m, PLAN_ESTUDIOS, states) == filters[filter_name])]
+    st.caption(f"{len(visible)} de {TOTAL_MATERIAS} materias · habilitación según las correlativas cargadas en el plan.")
+    if not visible:
+        st.info("No hay materias con esa búsqueda y filtro. Probá con Todas o borrá la búsqueda.")
+        return
+    selected = st.selectbox("Materia a explorar", visible, key=f"detalle_{usuario}")
+    status = estado_materia(selected, PLAN_ESTUDIOS, states)
+    state_label = "Regularizada · final pendiente" if status == "Final" else status
+    with st.container(border=True):
+        st.subheader(selected)
+        info = PLAN_ESTUDIOS[selected]
+        st.markdown(f"**{state_label}** · {info['puntos']} créditos · Oferta teórica: {info['periodo']}")
+        st.markdown("**Requisitos para cursar**")
+        missing = requisitos_pendientes(selected, PLAN_ESTUDIOS, states)
+        if not info["correlativas"]:
+            st.write("🔓 No tiene correlativas cargadas.")
+        for requirement in info["correlativas"]:
+            state = states.get(materia_id(requirement))
+            badge = "✅" if state in {"Final", "Aprobada"} else "🔒"
+            label = {"Final":"regularizada, final pendiente", "Aprobada":"aprobada", "Cursando":"cursando"}.get(state,"pendiente")
+            st.write(f"{badge} {requirement} — {label}")
+        dependents = [m for m, details in PLAN_ESTUDIOS.items() if selected in details["correlativas"]]
+        if dependents:
+            st.markdown("**Después de esta materia**")
+            for dependent in dependents:
+                others = [m for m in requisitos_pendientes(dependent, PLAN_ESTUDIOS, states) if m != selected]
+                st.write(f"↗ {dependent}" + (f" · También requiere: {', '.join(others)}" if others else " · Correlativas cubiertas al regularizar esta materia"))
+        if status in {"Disponible", "Bloqueada"}:
+            modality = st.selectbox("Modalidad de cursada", ["Regular", "Contracursada"], key=f"modalidad_{usuario}_{materia_id(selected)}")
+            conflict = get_conflicto_horario(selected, mis_datos)
+            if conflict:
+                st.warning(f"📅 Coincide el día con {conflict}. Verificá comisión, horario y cuatrimestre antes de agregarla.")
+            allowed = status == "Disponible"
+            if missing:
+                st.warning("Falta regularizar: " + ", ".join(missing))
+                allowed = st.checkbox("Tengo una excepción autorizada para cursarla", key=f"excepcion_{usuario}_{materia_id(selected)}")
+            if st.button("⚔️ Agregar a mi cursada", key=f"cursar_{usuario}_{materia_id(selected)}", disabled=not allowed, **ANCHO_COMPLETO):
+                _inscribir_materia(conn, df, usuario, selected, modality)
                 st.session_state["play_sound"] = "gunshot"
                 st.rerun()
+        else:
+            st.caption("Ya está registrada. Podés actualizar su resultado desde Mi cursada o su nota desde Mi avance → Historial.")
+    st.markdown("### 🌐 MAPA DE CORRELATIVIDADES")
+    if st.checkbox("Abrir mapa interactivo", key=f"abrir_mapa_{usuario}"):
+        whole = st.checkbox("Mostrar el plan completo", key=f"mapa_completo_{usuario}")
+        st.caption("🟢 Aprobada · 🟠 Final pendiente · 🟡 Cursando · 🔵 Disponible · ⚪ Bloqueada. Cada nodo también muestra el estado en texto.")
+        html = arbol_correlativas_html(
+            [m for m in PLAN_ESTUDIOS if states.get(materia_id(m)) == "Aprobada"],
+            [m for m in PLAN_ESTUDIOS if states.get(materia_id(m)) == "Cursando"],
+            [m for m in PLAN_ESTUDIOS if states.get(materia_id(m)) == "Final"],
+            foco=None if whole else selected,
+        )
+        mostrar_html(html, height=740, scrolling=True)
 
 
 def vista_horarios(mis_datos):
@@ -1665,16 +1468,20 @@ def vista_horarios(mis_datos):
     # Materias que el usuario cursa activamente (van a clase esta semana).
     # Las que están en "Final" ya no ocupan horario semanal.
     activas = set(mis_datos[mis_datos["Estado"] == "Cursando"]["Materia"].tolist())
+    only_mine = st.checkbox("Sólo mis materias en curso", value=True, key="horarios_personales")
+    oferta = {m: h for m, h in HORARIOS.items() if not only_mine or m in activas}
+    if only_mine and not oferta:
+        st.info("No hay horarios cargados para tus materias activas. Desmarcá el filtro para ver la oferta disponible.")
 
     # ── Tarjeta de hoy ────────────────────────────────────────────────
-    hoy_materias = [m for m, h in HORARIOS.items() if h["dia"] == hoy_nombre]
+    hoy_materias = [m for m, h in oferta.items() if h["dia"] == hoy_nombre]
     if hoy_materias:
         st.markdown(f"### 🔥 HOY — {hoy_nombre}")
         for m in hoy_materias:
             h = HORARIOS[m]
-            inst = f"<br><span style='color:#aaa; font-size:11px;'>Instructor: {h['instructor']}</span>" if h["instructor"] else ""
+            inst = f"<br><span style='color:#aaa; font-size:12px;'>Instructor: {h['instructor']}</span>" if h["instructor"] else ""
             activa_style = "border-left:4px solid #f1c40f;" if m in activas else "border-left:4px solid #444;"
-            activa_badge = " <span style='color:#f1c40f; font-size:10px;'>★ EN CURSO</span>" if m in activas else ""
+            activa_badge = " <span style='color:#f1c40f; font-size:12px;'>★ EN CURSO</span>" if m in activas else ""
             st.markdown(
                 f"<div style='background:#1a1c23; {activa_style} border-radius:6px; padding:12px 16px; margin-bottom:6px;'>"
                 f"<strong>{m}</strong>{activa_badge}"
@@ -1685,10 +1492,10 @@ def vista_horarios(mis_datos):
         st.markdown("---")
 
     # ── Grilla semanal completa ───────────────────────────────────────
-    st.markdown("### 📋 Semana completa — NOCHE")
+    st.markdown("### 📋 Semana — NOCHE")
 
     dias_con_materias = sorted(
-        set(h["dia"] for h in HORARIOS.values()),
+        set(h["dia"] for h in oferta.values()),
         key=lambda d: DIAS_ORDEN.index(d) if d in DIAS_ORDEN else 99
     )
 
@@ -1701,17 +1508,17 @@ def vista_horarios(mis_datos):
             f"font-size:15px; margin:18px 0 6px 0;'>{dia.upper()}{hoy_tag}</div>",
             unsafe_allow_html=True,
         )
-        materias_dia = [m for m, h in HORARIOS.items() if h["dia"] == dia]
+        materias_dia = [m for m, h in oferta.items() if h["dia"] == dia]
         for m in materias_dia:
             h = HORARIOS[m]
             inst = f" · {h['instructor']}" if h["instructor"] else ""
             activa_style = "border-left:4px solid #f1c40f; background:#1e1b0e;" if m in activas else "border-left:4px solid #2c3e50; background:#1a1c23;"
-            activa_badge = " <span style='color:#f1c40f; font-size:10px;'>★ EN CURSO</span>" if m in activas else ""
-            comision_badge = f"<span style='color:#666; font-size:10px;'> [{h['comision']}]</span>"
+            activa_badge = " <span style='color:#f1c40f; font-size:12px;'>★ EN CURSO</span>" if m in activas else ""
+            comision_badge = f"<span style='color:#b4becd; font-size:12px;'> [{h['comision']}]</span>"
             st.markdown(
                 f"<div style='{activa_style} border-radius:6px; padding:10px 14px; margin-bottom:4px;'>"
                 f"<strong>{m}</strong>{comision_badge}{activa_badge}"
-                f"<br><span style='color:#3498db; font-size:11px;'>👨‍🏫 {h['docente']}{inst}</span>"
+                f"<br><span style='color:#3498db; font-size:12px;'>👨‍🏫 {h['docente']}{inst}</span>"
                 f"</div>",
                 unsafe_allow_html=True,
             )
@@ -1721,21 +1528,31 @@ def vista_historial(conn, df, usuario, mis_datos):
     st.header("✅ REGISTRO DE COMBATE")
     cols_mostrar = [c for c in ["Materia", "Estado", "Nota", "Nota_parcial1", "Nota_parcial2",
                                  "Cursada", "Aplazos", "Fecha_aprobacion", "Fecha_examen"] if c in mis_datos.columns]
-    st.dataframe(mis_datos[cols_mostrar].sort_values("Estado"), use_container_width=True, hide_index=True)
+    display = mis_datos[cols_mostrar].sort_values("Estado").copy()
+    for col in ["Nota", "Nota_parcial1", "Nota_parcial2", "Aplazos"]:
+        if col in display:
+            display[col] = pd.to_numeric(display[col], errors="coerce")
+    st.dataframe(display, **ANCHO_COMPLETO, hide_index=True)
 
     # Editar materia aprobada
     aprobadas_list = mis_datos[mis_datos["Estado"] == "Aprobada"]["Materia"].tolist()
     if aprobadas_list:
         st.markdown("---")
         st.markdown("#### ✏️ CORREGIR MATERIA APROBADA")
-        with st.form("editar_aprobada"):
-            mat_sel     = st.selectbox("Materia:", aprobadas_list)
-            nueva_nota  = st.number_input("Nueva nota (4-10):", min_value=4, max_value=10, value=7)
-            nueva_fecha = st.date_input("Fecha de aprobación:", value=date.today())
+        mat_sel = st.selectbox("Materia aprobada:", aprobadas_list, key=f"hist_materia_{usuario}")
+        actual = mis_datos[(mis_datos["Materia"] == mat_sel) & (mis_datos["Estado"] == "Aprobada")].iloc[0]
+        nota_actual = pd.to_numeric(actual.get("Nota", ""), errors="coerce")
+        nota_actual = int(nota_actual) if pd.notna(nota_actual) and 4 <= nota_actual <= 10 else 7
+        fecha_actual = fecha_existente(actual.get("Fecha_aprobacion", ""))
+        if fecha_actual is None:
+            st.caption("Esta aprobación no tiene fecha: completala sólo si la conocés.")
+        with st.form(f"editar_aprobada_{usuario}_{materia_id(mat_sel)}"):
+            nueva_nota = st.number_input("Nueva nota (4-10):", min_value=4, max_value=10, value=nota_actual)
+            nueva_fecha = st.date_input("Fecha de aprobación:", value=fecha_actual)
             if st.form_submit_button("💾 ACTUALIZAR"):
-                mask = (df["Nombre"] == usuario) & (df["Materia"] == mat_sel)
+                mask = mascara_materia(df, usuario, mat_sel)
                 df.loc[mask, "Nota"]             = nueva_nota
-                df.loc[mask, "Fecha_aprobacion"] = str(nueva_fecha)
+                df.loc[mask, "Fecha_aprobacion"] = str(nueva_fecha) if nueva_fecha else ""
                 guardar_df(conn, df, usuario)
                 st.session_state["play_sound"] = "click"
                 st.success(f"✅ {mat_sel} actualizada.")
@@ -1773,7 +1590,7 @@ def vista_historial(conn, df, usuario, mis_datos):
                 f"<span style='color:#aaa; font-size:12px;'>— {', '.join(motivos)}</span></div>",
                 unsafe_allow_html=True,
             )
-            if c2i.button("🗑️ Borrar", key=f"fixdel_{i}", use_container_width=True):
+            if c2i.button("🗑️ Borrar", key=f"fixdel_{i}", **ANCHO_COMPLETO):
                 idx_drop = df[(df["Nombre"] == usuario)
                               & (df["Materia"] == materia)
                               & (df["Estado"] == estado)].index
@@ -1785,7 +1602,7 @@ def vista_historial(conn, df, usuario, mis_datos):
             st.markdown(
                 f"<div style='color:#e67e22; font-size:13px; margin-top:8px;'>"
                 f"⚠️ Materias duplicadas (más de una fila): {', '.join(dup_materias)}. "
-                f"Volver a anotarte en ellas desde PRÓX. limpia el duplicado automáticamente.</div>",
+                f"Revisá las filas originales antes de editar: las métricas cuentan cada materia una sola vez.</div>",
                 unsafe_allow_html=True,
             )
     else:
@@ -1795,108 +1612,44 @@ def vista_historial(conn, df, usuario, mis_datos):
 
 def vista_estadisticas(df, usuario, mis_datos, aprobadas_df, cursando_df, final_df,
                         puntos_logrados, promedio_simple, promedio_pond):
-    st.header("📊 ANÁLISIS DE CAMPAÑA")
-
-    # Métricas resumen
-    c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("Aprobadas",  len(aprobadas_df))
-    c2.metric("Cursando",   len(cursando_df))
-    c3.metric("En final",   len(final_df))
-    c4.metric("Pendientes", TOTAL_MATERIAS - len(aprobadas_df) - len(cursando_df) - len(final_df))
-    c5.metric("Créditos",   f"{puntos_logrados}/{CREDITOS_TOTAL_LICENCIATURA}")
-
+    st.header("📊 MI AVANCE · CAMPAÑA")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Aprobadas", f"{len(aprobadas_df)}/{TOTAL_MATERIAS}")
+    c2.metric("Créditos", f"{puntos_logrados}/{CREDITOS_TOTAL_LICENCIATURA}")
+    c3.metric("Promedio", f"{promedio_simple:.2f}" if pd.notna(promedio_simple) else "Sin notas")
+    st.caption(f"Cursando: {len(cursando_df)} · Final pendiente: {len(final_df)} · Promedio ponderado por créditos: {promedio_pond:.2f}")
+    st.markdown("### 🧩 AVANCE POR ÁREA")
+    st.caption("Porcentaje de materias aprobadas en cada área. No mide tu desempeño ni pondera créditos.")
+    st.plotly_chart(grafico_radar(aprobadas_df), **ANCHO_COMPLETO, config={"displayModeBar": False, "staticPlot": True})
+    for area, subjects in AREAS.items():
+        count = sum(m in aprobadas_df["Materia"].values for m in subjects)
+        st.write(f"**{area}:** {count}/{len(subjects)} · {count/len(subjects):.0%}")
+    st.markdown("### 📈 PROGRESO EN EL TIEMPO")
+    chart = grafico_progreso_tiempo(aprobadas_df)
+    dated = pd.to_datetime(aprobadas_df["Fecha_aprobacion"], errors="coerce").notna().sum()
+    st.caption(f"La curva incluye {dated} de {len(aprobadas_df)} aprobadas. Las que no tienen fecha siguen contando en tu avance total.")
+    if chart is not None:
+        st.plotly_chart(chart, **ANCHO_COMPLETO, config={"displayModeBar": False})
+    else:
+        st.info("Completá las fechas conocidas en Historial para ver la evolución.")
     egreso = estimar_egreso(aprobadas_df)
     if egreso:
-        st.info(f"🎓 A tu ritmo actual, terminarías la Licenciatura completa ({TOTAL_MATERIAS} materias) aproximadamente en **{egreso}**.")
-    else:
-        st.info("💡 Registrá fechas de aprobación en INICIO para estimar cuándo terminás la carrera.")
-
-    st.markdown("---")
-
-    # 🎖️ Logros personales
-    st.markdown("#### 🎖️ MEDALLAS DE CAMPAÑA")
-    logros = calcular_logros(mis_datos, aprobadas_df, puntos_logrados)
-    cols_logros = st.columns(len(logros))
-    for col, (emoji, nombre, desc, on) in zip(cols_logros, logros):
-        clase = "logro-card logro-on" if on else "logro-card logro-off"
-        col.markdown(
-            f"<div class='{clase}'>"
-            f"<div style='font-size:26px;'>{emoji}</div>"
-            f"<div style='font-family:monospace; font-size:10px; color:#f1c40f; margin-top:4px;'>{nombre}</div>"
-            f"<div style='font-size:9px; color:#888; margin-top:2px;'>{desc}</div>"
-            f"</div>",
-            unsafe_allow_html=True,
-        )
-
-    st.markdown("---")
-
-    # Progreso en el tiempo
-    st.markdown("#### 📈 PROGRESO EN EL TIEMPO")
-    fig_tiempo = grafico_progreso_tiempo(aprobadas_df)
-    if fig_tiempo:
-        st.plotly_chart(fig_tiempo, use_container_width=True)
-    else:
-        st.info("💡 Registrá fechas de aprobación para ver tu curva de progreso.")
-
-    st.markdown("---")
-
-    # Radar chart
-    st.markdown("#### 🕸️ FORTALEZA POR ÁREA")
-    col_r, col_r2 = st.columns([2, 1])
-    with col_r:
-        st.plotly_chart(grafico_radar(aprobadas_df), use_container_width=True)
-    with col_r2:
-        st.markdown("<br><br>", unsafe_allow_html=True)
-        for area, mats in AREAS.items():
-            aprobadas_area = sum(1 for m in mats if m in aprobadas_df["Materia"].values)
-            pct = int(aprobadas_area / len(mats) * 100) if mats else 0
-            st.markdown(f"**{area}**: {aprobadas_area}/{len(mats)} ({pct}%)")
-
-    st.markdown("---")
-
-    # Árbol de correlativas
-    st.markdown("#### 🌐 ÁRBOL DE CORRELATIVAS")
-    st.markdown(
-        "<div style='display:flex; gap:20px; flex-wrap:wrap; margin-bottom:10px; font-size:13px;'>"
-        "<span>🟢 Aprobada</span><span>🟠 Regularizada (final pend.)</span><span>🟡 Cursando</span>"
-        "<span>🔵 Disponible</span><span>⚫ Bloqueada</span></div>",
-        unsafe_allow_html=True,
-    )
-    html_grafo = arbol_correlativas_html(
-        aprobadas_df["Materia"].tolist(),
-        cursando_df["Materia"].tolist(),
-        final_df["Materia"].tolist(),
-    )
-    st.components.v1.html(html_grafo, height=630, scrolling=False)
-
-    st.markdown("---")
-
-    # Calendario de exámenes
-    st.markdown("#### 📅 CALENDARIO DE EXÁMENES")
-    examenes = _get_examenes_proximos(mis_datos)
-    if examenes:
-        for ex in examenes:
-            dias = ex["dias"]
-            if dias is None:
-                badge = "📅 fecha inválida"
-            elif dias < 0:
-                badge = f"⏰ hace {abs(dias)}d"
-            elif dias == 0:
-                badge = "🚨 HOY"
-            elif dias <= 7:
-                badge = f"⚠️ en {dias}d"
-            else:
-                badge = f"📅 en {dias}d"
-            urgente = dias is not None and dias <= 7
-            clase   = "exam-card exam-urgent" if urgente else "exam-card"
-            st.markdown(
-                f"<div class='{clase}'>"
-                f"<strong>{ex['materia']}</strong> <small style='color:#888'>{ex['tipo']}</small> — {ex['fecha_str']} {badge}"
-                f"</div>",
-                unsafe_allow_html=True,
-            )
-    else:
-        st.info("No tenés exámenes cargados. Editá una materia en INICIO (✏️) para agregar fechas.")
+        with st.expander("🎓 Escenario de egreso según tu historial"):
+            st.write(f"Si mantuvieras el ritmo de tus aprobaciones con fecha: **{egreso}**.")
+            st.caption("Es una orientación: no contempla oferta, carga de cursada ni requisitos académicos. Usa sólo aprobaciones fechadas para medir el ritmo.")
+    st.markdown("### 🎖️ MEDALLAS DE CAMPAÑA")
+    columns = st.columns(3)
+    for i, (emoji, name, description, unlocked) in enumerate(calcular_logros(mis_datos, aprobadas_df, puntos_logrados)):
+        css = "logro-card logro-on" if unlocked else "logro-card logro-off"
+        columns[i % 3].markdown(f"<div class='{css}'><span style='font-size:26px'>{emoji}</span><br><strong>{name}</strong><br>{description}<br>{'DESBLOQUEADA' if unlocked else 'POR DESBLOQUEAR'}</div>", unsafe_allow_html=True)
+    st.markdown("### 📅 EXÁMENES REGISTRADOS")
+    exams = _get_examenes_proximos(mis_datos)
+    if not exams:
+        st.info("No hay exámenes cargados. Agregá una fecha desde Mi cursada.")
+    for exam in exams:
+        days = exam["dias"]
+        badge = "Fecha inválida" if days is None else (f"Hace {abs(days)} días" if days < 0 else "HOY" if days == 0 else f"En {days} días")
+        st.write(f"{exam['tipo']} · **{exam['materia']}** · {exam['fecha_str']} · {badge}")
 
 
 # ─────────────────────────────────────────────
@@ -1910,17 +1663,16 @@ def get_connection():
 @st.cache_data(ttl=60)
 def cargar_datos(_conn) -> pd.DataFrame | None:
     try:
-        df = _conn.read(worksheet=0, ttl=0)
-        df.columns = [str(c).strip().capitalize() for c in df.columns]
+        df = normalizar_tabla(_conn.read(worksheet=0, ttl=0))
         df = asegurar_columnas(df)
         df = normalizar_estado(df)
         return df
-    except Exception as e:
+    except Exception:
         st.error("❌ ERROR CRÍTICO DE CONEXIÓN")
         st.warning(
             "Google Sheets no responde. "
-            "Verificá que el archivo esté compartido con el Service Account como 'Editor'.\n\n"
-            f"Detalle: `{e}`"
+            "Revisá la configuración de conexión y los permisos de la planilla. "
+            "No se guardó ningún cambio."
         )
         return None
 
@@ -1929,37 +1681,59 @@ def cargar_datos(_conn) -> pd.DataFrame | None:
 # 7. MAIN
 # ─────────────────────────────────────────────
 def main():
-    if "menu" not in st.session_state:
-        st.session_state.menu = "Inicio"
-    if "show_confetti" not in st.session_state:
-        st.session_state.show_confetti = False
-    if "play_sound" not in st.session_state:
-        st.session_state.play_sound = None
-
-    conn = get_connection()
-    df   = cargar_datos(conn)
-    if df is None:
+    st.session_state.setdefault("show_confetti", False)
+    st.session_state.setdefault("play_sound", None)
+    try:
+        conn = get_connection()
+    except Exception:
+        st.error("No pude abrir la conexión. Revisá su configuración o usá demo.py para probar sin datos reales.")
         st.stop()
-
-    # MISSION COMPLETE + confetti al aprobar materia
+    # Freeze the edit baseline until an explicit refresh or confirmed save.
+    # A shared-cache expiry must not silently replace it while a form is open.
+    df = st.session_state.get("_session_df")
+    if df is None:
+        df = cargar_datos(conn)
+        if df is not None:
+            st.session_state["_session_df"] = df.copy(deep=True)
+    else:
+        df = df.copy(deep=True)
+    if df is None:
+        if st.button("🔄 Volver a cargar datos"):
+            cargar_datos.clear()
+            st.rerun()
+        st.stop()
+    st.session_state["_base_df"] = df.copy(deep=True)
+    st.markdown("<h1 class='retro-font' style='text-align:center;font-size:24px'>SQUAD COMMAND 2026</h1>", unsafe_allow_html=True)
+    st.markdown("<div class='arcade-signal'>🎮 CÍRCULO ROJO · Tu carrera, misión por misión.</div>", unsafe_allow_html=True)
+    with st.expander("⚙️ CABINA ARCADE · Sonido y efectos"):
+        st.checkbox("🔊 Sonidos", value=True, key="sonidos")
+        st.slider("Volumen", 0, 100, 45, key="volumen")
+        st.checkbox("✨ Efectos y personajes animados", value=True, key="efectos")
+        st.caption("Las animaciones respetan la preferencia de movimiento reducido del dispositivo. El navegador puede requerir un toque para habilitar audio.")
+        if st.button("▶ Probar sonido"):
+            if st.session_state.sonidos:
+                mostrar_html(sound_html("click"), height=48)
+    if not st.session_state.efectos:
+        st.markdown("<style>.stApp::before{display:none}.arcade-signal{animation:none}</style>", unsafe_allow_html=True)
+    notice = st.session_state.pop("_save_notice", None)
+    if notice:
+        st.success(notice)
     if st.session_state.show_confetti:
-        st.components.v1.html(confetti_html(), height=0)
+        if st.session_state.efectos:
+            mostrar_html(confetti_html(), height=160)
+        if st.session_state.sonidos:
+            mostrar_html(sound_html("missioncomplete"), height=48)
         st.session_state.show_confetti = False
-
-    # Otros sonidos: disparo, headshot, finishhim, delete, click
     if st.session_state.play_sound:
-        st.components.v1.html(sound_html(st.session_state.play_sound), height=0)
+        if st.session_state.sonidos:
+            mostrar_html(sound_html(st.session_state.play_sound), height=48)
         st.session_state.play_sound = None
-
-    # Header
-    st.markdown(
-        "<h1 class='retro-font' style='text-align:center; font-size:24px;'>SQUAD COMMAND 2026</h1>",
-        unsafe_allow_html=True,
-    )
-
     usuarios = sorted(df["Nombre"].dropna().unique().tolist())
-    usuario  = st.selectbox("👤 SOLDADO:", ["Seleccionar..."] + usuarios, label_visibility="collapsed")
-
+    usuario = st.selectbox("👤 Elegí tu soldado", ["Seleccionar..."] + usuarios, key="soldado")
+    if st.button("🔄 Actualizar datos", help="Traer los últimos cambios guardados"):
+        cargar_datos.clear()
+        st.session_state.pop("_session_df", None)
+        st.rerun()
     # ➕ Alta de nuevo soldado (sin tocar el Sheet a mano)
     with st.expander("➕ NUEVO RECLUTA"):
         with st.form("form_nuevo_recluta"):
@@ -1967,7 +1741,7 @@ def main():
             materia_ini  = st.selectbox("Primera materia:", list(PLAN_ESTUDIOS.keys()))
             estado_ini   = st.selectbox("Estado inicial:", ["Cursando", "Aprobada"])
             nota_ini     = st.number_input("Nota (solo si ya la aprobó):", 0, 10, 0)
-            if st.form_submit_button("🎖️ ALISTAR", use_container_width=True):
+            if st.form_submit_button("🎖️ ALISTAR", **ANCHO_COMPLETO):
                 nombre_limpio = nombre_nuevo.strip()
                 if not nombre_limpio:
                     st.error("⚠️ Ingresá un nombre.")
@@ -1988,66 +1762,36 @@ def main():
                     st.rerun()
 
     if usuario == "Seleccionar...":
+        st.info("Seleccioná tu soldado para continuar la campaña, o alistá uno nuevo.")
         return
-
-    # Navegación — 6 secciones (pills si están disponibles; fallback a botones)
-    menus = [
-        ("🏠 INICIO", "Inicio"),
-        ("📝 PRÓX.",  "Proximas"),
-        ("✅ HIST.",  "Historial"),
-        ("👥 GRUPO", "Grupo"),
-        ("📅 HORA.", "Horarios"),
-        ("📊 STATS", "Stats"),
-    ]
-    label_por_key = {k: l for l, k in menus}
-    key_por_label = {l: k for l, k in menus}
-
-    if hasattr(st, "pills"):
-        sel = st.pills(
-            "NAV",
-            options=[l for l, _ in menus],
-            default=label_por_key.get(st.session_state.menu, menus[0][0]),
-            label_visibility="collapsed",
-        )
-        if sel:
-            st.session_state.menu = key_por_label[sel]
-    else:
-        nav_cols = st.columns(6)
-        for col, (label, key) in zip(nav_cols, menus):
-            # Sin st.rerun(): el clic ya dispara el rerun y el despacho ocurre después
-            if col.button(label, use_container_width=True):
-                st.session_state.menu = key
-
-    st.markdown("---")
-
-    # Datos del usuario
-    mis_datos    = df[df["Nombre"] == usuario].copy()
-    aprobadas_df = mis_datos[mis_datos["Estado"] == "Aprobada"]
-    cursando_df  = mis_datos[mis_datos["Estado"] == "Cursando"]
-    final_df     = mis_datos[mis_datos["Estado"] == "Final"]
-
-    puntos_logrados = sum(PLAN_ESTUDIOS.get(m, {}).get("puntos", 0) for m in aprobadas_df["Materia"])
-    promedio_simple = (pd.to_numeric(aprobadas_df["Nota"], errors="coerce").dropna().mean()
-                       if not aprobadas_df.empty else 0.0)
-    promedio_pond   = calcular_promedio_ponderado(aprobadas_df)
-
-    # Despacho de vistas
-    menu = st.session_state.menu
-
+    labels = {"Inicio":"⚔️ Mi cursada", "Proximas":"🧭 Planificar", "Stats":"📊 Mi avance", "Grupo":"👥 Squad"}
+    menu = st.radio("Panel de misión", list(labels), format_func=labels.get, key="pantalla", horizontal=True, label_visibility="collapsed")
+    st.session_state.menu = menu
+    st.divider()
+    raw_mine = df[df["Nombre"] == usuario].copy()
+    mine = vista_academica(raw_mine, PLAN_ESTUDIOS)
+    aprobadas = mine[mine["Estado"] == "Aprobada"]
+    cursando = mine[mine["Estado"] == "Cursando"]
+    final = mine[mine["Estado"] == "Final"]
+    points = sum(PLAN_ESTUDIOS[m]["puntos"] for m in aprobadas["Materia"])
+    average = pd.to_numeric(aprobadas["Nota"], errors="coerce").dropna().mean() if not aprobadas.empty else 0.0
+    weighted = calcular_promedio_ponderado(aprobadas)
     if menu == "Inicio":
-        vista_inicio(conn, df, usuario, mis_datos, aprobadas_df, cursando_df, final_df,
-                     puntos_logrados, promedio_simple, promedio_pond)
+        section = st.radio("Mi cursada", ["Materias", "Horarios"], key="seccion_cursada", horizontal=True, label_visibility="collapsed")
+        if section == "Horarios":
+            vista_horarios(mine)
+        else:
+            vista_inicio(conn, df, usuario, mine, aprobadas, cursando, final, points, average, weighted)
+    elif menu == "Proximas":
+        vista_proximas(conn, df, usuario, raw_mine, aprobadas)
+    elif menu == "Stats":
+        section = st.radio("Mi avance", ["Resumen", "Historial"], key="seccion_avance", horizontal=True, label_visibility="collapsed")
+        if section == "Historial":
+            vista_historial(conn, df, usuario, raw_mine)
+        else:
+            vista_estadisticas(df, usuario, mine, aprobadas, cursando, final, points, average, weighted)
     elif menu == "Grupo":
         vista_grupo(df)
-    elif menu == "Proximas":
-        vista_proximas(conn, df, usuario, mis_datos, aprobadas_df)
-    elif menu == "Historial":
-        vista_historial(conn, df, usuario, mis_datos)
-    elif menu == "Horarios":
-        vista_horarios(mis_datos)
-    elif menu == "Stats":
-        vista_estadisticas(df, usuario, mis_datos, aprobadas_df, cursando_df, final_df,
-                           puntos_logrados, promedio_simple, promedio_pond)
 
 
 if __name__ == "__main__":
